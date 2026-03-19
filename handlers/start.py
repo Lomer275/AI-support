@@ -4,17 +4,26 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
-from keyboards import remove_keyboard
+from keyboards import main_menu_keyboard, remove_keyboard
 from services.supabase import SupabaseService
+from states import SessionState
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, supabase: SupabaseService, **kwargs):
+async def cmd_start(message: Message, session: dict, supabase: SupabaseService, **kwargs):
     first_name = message.from_user.first_name if message.from_user else None
     chat_id = message.chat.id
+
+    if session.get("state") == SessionState.AUTHORIZED:
+        name = session.get("contact_name") or first_name or "вы"
+        await message.answer(
+            f"✅ {name}, вы уже авторизованы. Чем могу помочь?",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
 
     # Reset session to waiting_inn
     await supabase.update_session(

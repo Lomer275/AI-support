@@ -19,52 +19,80 @@ docker compose logs -f bot
 docker compose down
 ```
 
-No test suite exists. Manual testing follows the state machine flow described in `docs/ТЗ.md`.
+No test suite exists. Manual testing follows the state machine flow described in `docs/5. SUP-unsorted/ТЗ.md`.
 
 ## Architecture
 
 ### State Machine
 
-Session state is persisted in **Supabase** (not Aiogram FSM). States are defined in `states.py`:
+Session state is persisted in **Supabase** table `bot_sessions` (keyed by `chat_id`), not Aiogram FSM. States are defined in `states.py` as string constants (`"waiting_inn"`, `"waiting_phone"`, `"authorized"`):
 
 ```
 /start → WAITING_INN → WAITING_PHONE → AUTHORIZED
                  ↑ (INN not found)     ↑ (phone mismatch)
 ```
 
-`/start` always resets session state regardless of current state.
+`/start` always resets the session to `waiting_inn`, clearing all CRM fields.
 
 ### Request Flow
 
-1. Telegram update → `middlewares/session.py` loads/creates Supabase session, deduplicates by `update_id`
-2. Handler routing by update type and current session state
-3. External calls: Supabase (state storage), Bitrix24 (CRM lookup), OpenAI (response generation)
+1. Telegram update → `middlewares/session.py` calls Supabase RPC `get_or_create_session`, deduplicates by `update_id` (returns `is_duplicate: true` for replays → middleware drops them)
+2. Middleware injects `data["session"]` and `data["supabase"]` into handler context
+3. Handler routing by update type and `session["state"]`
+4. External calls: Supabase (state storage), Bitrix24 (CRM lookup), OpenAI (response generation)
 
-### Key Files
+### Service Wiring
 
-| File | Purpose |
-|------|---------|
-| `bot.py` | Entry point: initializes Bot, Dispatcher, services; registers middleware + handlers |
-| `config.py` | `Settings` dataclass loaded from `.env` |
-| `handlers/text.py` | Core state-based routing logic for text messages |
-| `handlers/callbacks.py` | Inline button menu navigation |
-| `handlers/contact.py` | Phone verification against Bitrix24 |
-| `services/supabase.py` | Session CRUD via RPC `get_or_create_session` + PATCH |
-| `services/bitrix.py` | Batch INN search, deal update with auth status |
-| `services/openai_client.py` | 5 distinct prompts for the "Alina" persona |
-| `keyboards.py` | Phone share button, 4-button main menu, back button |
-| `utils.py` | `normalize_phone()`, `extract_inn()`, `moscow_now()` |
+All three services (`SupabaseService`, `BitrixService`, `OpenAIService`) share a **single** `aiohttp.ClientSession` created in `bot.py` and closed on shutdown. They are injected into handlers via `dp["supabase"]`, `dp["bitrix"]`, `dp["openai_svc"]`. The middleware also re-injects `supabase` directly into `data`.
+
+### Contact Handler (phone verification)
+
+`handlers/contact.py` handles the `F.contact` update (Telegram share-phone button). Only acts in `WAITING_PHONE` state:
+1. Normalizes both phones to last 10 digits
+2. **Match:** calls `bitrix.update_deal_authorized()`, updates session to `AUTHORIZED`, sends 2-message welcome (welcome text + menu)
+3. **Mismatch:** calls `openai_svc.phone_mismatch()` and sends AI response
+
+### Handler Registration Order (important)
+
+Handlers are registered in `handlers/__init__.py` in this order:
+
+1. `start_router` — `/start` command
+2. `contact_router` — `F.contact` (phone share button)
+3. `callbacks_router` — inline button callbacks (`back_menu`, `menu_*`)
+4. `text_router` — `F.text` catch-all, routes by state
+
+The text router must remain last to avoid shadowing more specific handlers.
+
+### Bitrix24 Integration
+
+`services/bitrix.py` uses a **batch API call** (`/batch`) to fetch deal → contacts → contact detail in one request. Hardcoded custom field IDs:
+
+- `UF_CRM_1751273997835` — INN field on deal
+- `UF_CRM_1768296374` — auth status field
+- `UF_CRM_1768547250879` — auth timestamp field
+
+Search filters: `CATEGORY_ID=4`, `STAGE_SEMANTIC_ID=P` (active/in-progress deals only), ordered by `DATE_CREATE DESC`.
 
 ### OpenAI Integration
 
 `services/openai_client.py` contains 5 prompts for different bot states:
-- INN validation errors
-- INN not found in Bitrix
-- Phone verification guidance
-- Phone mismatch
-- Authorized chat (main "Alina" persona)
+- `no_inn_in_text` — INN validation errors (includes digit count context)
+- `inn_not_found` — INN not in Bitrix
+- `waiting_for_phone` — phone verification guidance
+- `phone_mismatch` — phone mismatch
+- `chat_as_alina` — authorized chat (main "Alina" persona)
 
-All prompts enforce first-person Russian speech as "Alina". The model is configurable via `OPENAI_MODEL` env var (default: `gpt-4o-mini`).
+All prompts enforce first-person Russian speech as "Alina". The model is configurable via `OPENAI_MODEL` env var (default: `gpt-4o-mini`). Every handler has a hardcoded fallback string used when the OpenAI call returns `None`.
+
+### Menu Sections
+
+The 4 main menu buttons (`menu_chat`, `menu_payment`, `menu_tasks`, `menu_docs`) are handled in `handlers/callbacks.py`. **Only `menu_chat` is functional** — payment, tasks, and documents sections are stubs showing "в разработке" messages.
+
+### Key Utilities
+
+- `normalize_phone()` — strips non-digits, returns last 10 digits for comparison
+- `extract_inn()` — finds exactly 12-digit sequences; also returns `max_digit_sequence_length` for AI context. Note: 10-digit INN (legal entities) is not supported.
+- `moscow_now()` — ISO timestamp in UTC+3 for Bitrix auth timestamp field
 
 ## Environment Variables (`.env`)
 
@@ -72,7 +100,7 @@ All prompts enforce first-person Russian speech as "Alina". The model is configu
 BOT_TOKEN=           # Telegram bot token
 SUPABASE_URL=        # Supabase project URL
 SUPABASE_ANON_KEY=   # Supabase anon key
-BITRIX_WEBHOOK_BASE= # Bitrix24 webhook base URL
+BITRIX_WEBHOOK_BASE= # Bitrix24 webhook base URL (no trailing slash)
 OPENAI_API_KEY=      # OpenAI API key
 OPENAI_MODEL=        # e.g. gpt-4o-mini
 ```
@@ -80,3 +108,22 @@ OPENAI_MODEL=        # e.g. gpt-4o-mini
 ## Deployment Note
 
 Before deploying, deactivate the corresponding n8n workflow on `n8n.arbitra.online` to prevent duplicate message handling. The VPS is at `89.223.125.143`.
+
+## Docs Structure
+
+```
+docs/
+├── 1. SUP-business requirements/   # BR01_ai_manager_bfl.md — product vision, JTBD, roadmap
+├── 2. SUP-specifications/          # Technical specs (S01 usability test cycle)
+├── 3. SUP-tasks/                   # Task files (T01, T02…) with acceptance criteria
+├── 4. SUP-guides/                  # Internal conventions, templates, versioning guides
+└── 5. SUP-unsorted/                # ТЗ.md (original technical spec), questions.md (92 typical client questions), PDFs
+```
+
+## Planned Features (from BR01)
+
+Current MVP covers: authorization (INN + phone) and AI chat. Upcoming stages:
+- **Stage 2:** Client profiling survey + document collection (read checklist from Bitrix, accept files → upload to Bitrix folder `UF_FOLDER_ID`)
+- **Stage 3:** Proactive notifications (scheduled outreach, court events from Bitrix)
+- **Stage 4:** Operator escalation (conflict/attrition signals → queue with context handoff)
+- **Stage 5:** Tasks and payment sections (currently stubs)
