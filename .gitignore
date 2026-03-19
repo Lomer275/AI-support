@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.idea/
+.vscode/
+.mcp.json
+.claude/settings.local.json
