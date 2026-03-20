@@ -38,45 +38,41 @@ class BitrixService:
                 "select[]=ID&select[]=NAME&select[]=LAST_NAME&select[]=SECOND_NAME&select[]=PHONE"
             ),
         }
-        try:
-            async with self._session.post(url, data=params) as resp:
-                data = await resp.json(content_type=None)
+        async with self._session.post(url, data=params) as resp:
+            data = await resp.json(content_type=None)
 
-            result = data.get("result", {}).get("result", {})
-            deals = result.get("deal", [])
-            if not deals:
-                return None
-
-            deal = deals[0]
-            contact_detail = result.get("contact_detail", {})
-            if not contact_detail or not contact_detail.get("ID"):
-                return None
-
-            # Build full name
-            parts = [
-                contact_detail.get("LAST_NAME", ""),
-                contact_detail.get("NAME", ""),
-                contact_detail.get("SECOND_NAME", ""),
-            ]
-            full_name = " ".join(p for p in parts if p).strip()
-
-            # Extract phone
-            phones = contact_detail.get("PHONE", [])
-            bitrix_phone = phones[0]["VALUE"] if phones else ""
-
-            contacts_list = result.get("contacts", [])
-            contact_id = str(contacts_list[0]["CONTACT_ID"]) if contacts_list else ""
-
-            return {
-                "deal_id": str(deal["ID"]),
-                "contact_id": contact_id,
-                "contact_name": full_name or "Клиент",
-                "bitrix_phone": bitrix_phone,
-                "inn": inn,
-            }
-        except Exception:
-            logger.exception("Bitrix search_by_inn failed")
+        result = data.get("result", {}).get("result", {})
+        deals = result.get("deal", [])
+        if not deals:
             return None
+
+        deal = deals[0]
+        contact_detail = result.get("contact_detail", {})
+        if not contact_detail or not contact_detail.get("ID"):
+            return None
+
+        # Build full name
+        parts = [
+            contact_detail.get("LAST_NAME", ""),
+            contact_detail.get("NAME", ""),
+            contact_detail.get("SECOND_NAME", ""),
+        ]
+        full_name = " ".join(p for p in parts if p).strip()
+
+        # Extract phone
+        phones = contact_detail.get("PHONE", [])
+        bitrix_phone = phones[0]["VALUE"] if phones else ""
+
+        contacts_list = result.get("contacts", [])
+        contact_id = str(contacts_list[0]["CONTACT_ID"]) if contacts_list else ""
+
+        return {
+            "deal_id": str(deal["ID"]),
+            "contact_id": contact_id,
+            "contact_name": full_name or "Клиент",
+            "bitrix_phone": bitrix_phone,
+            "inn": inn,
+        }
 
     async def update_deal_authorized(self, deal_id: str, timestamp: str) -> bool:
         """Mark deal as authorized with timestamp."""

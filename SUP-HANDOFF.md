@@ -45,11 +45,11 @@ T01–T05 независимы, T06 зависит от всех.
 | ID | Задача | Статус |
 |----|--------|--------|
 | [T01](docs/3.%20SUP-tasks/Done/S01_authorization_done/T01_s01_start_already_authorized_done.md) | /start для уже авторизованного клиента | ✅ 2026-03-20 |
-| [T02](docs/3.%20SUP-tasks/T02_s01_inn_error_counter.md) | Счётчик ошибок ИНН + двухэтапная эскалация | draft |
-| [T03](docs/3.%20SUP-tasks/T03_s01_phone_mismatch_escalation.md) | Эскалация при несовпадении телефона | draft |
-| [T04](docs/3.%20SUP-tasks/T04_s01_bitrix_unavailable.md) | Обработка недоступности Bitrix | draft |
-| [T05](docs/3.%20SUP-tasks/T05_s01_auth_consultative_mode.md) | Консультативный режим во время авторизации | draft |
-| [T06](docs/3.%20SUP-tasks/T06_s01_auth_autotests.md) | Автотесты авторизации через Telegram MCP | draft |
+| [T02](docs/3.%20SUP-tasks/Done/S01_authorization_done/T02_s01_inn_error_counter_done.md) | Счётчик ошибок ИНН + двухэтапная эскалация | ✅ 2026-03-20 |
+| [T03](docs/3.%20SUP-tasks/Done/S01_authorization_done/T03_s01_phone_mismatch_escalation_done.md) | Эскалация при несовпадении телефона | ✅ 2026-03-20 |
+| [T04](docs/3.%20SUP-tasks/Done/S01_authorization_done/T04_s01_bitrix_unavailable_done.md) | Обработка недоступности Bitrix | ✅ 2026-03-20 |
+| [T05](docs/3.%20SUP-tasks/Done/S01_authorization_done/T05_s01_auth_consultative_mode_done.md) | Консультативный режим во время авторизации | ✅ 2026-03-20 |
+| [T06](docs/3.%20SUP-tasks/Done/S01_authorization_done/T06_s01_auth_autotests_done.md) | Автотесты авторизации через Telegram MCP | ✅ 2026-03-20 |
 
 ### Приоритет 1: Сбор документов
 

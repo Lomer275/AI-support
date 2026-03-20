@@ -15,12 +15,15 @@ router = Router()
 
 # Fallback texts when AI fails
 FALLBACK_INN_NOT_FOUND = "ИНН не найден. Проверьте правильность и повторите."
+FALLBACK_INN_NOT_FOUND_ESCALATE = "ИНН не найден. Если у вас возникли трудности — напишите нам в поддержку @Lobster_21, и мы разберёмся."
 FALLBACK_NO_INN = "Пожалуйста, введите ваш ИНН — 12 цифр (например: 123456789012)."
+FALLBACK_NO_INN_ESCALATE = "Пожалуйста, введите ваш ИНН — 12 цифр. Если у вас возникли трудности — напишите нам в поддержку @Lobster_21, и мы разберёмся."
 FALLBACK_WAITING_PHONE = (
     "Нажмите кнопку \U0001f4f1 Поделиться номером телефона ниже, "
     "чтобы я могла подтвердить вашу личность."
 )
 FALLBACK_ALINA = "Извините, не могу ответить сейчас. Обратитесь к менеджеру."
+FALLBACK_BITRIX_UNAVAILABLE = "Возникли временные технические проблемы. Попробуйте ещё раз через несколько минут."
 
 
 @router.message(F.text)
@@ -58,7 +61,12 @@ async def _handle_waiting_inn(
 
     if inn:
         # INN found — search in Bitrix
-        result = await bitrix.search_by_inn(inn)
+        try:
+            result = await bitrix.search_by_inn(inn)
+        except Exception:
+            logger.exception("Bitrix unavailable during INN search")
+            await message.answer(FALLBACK_BITRIX_UNAVAILABLE)
+            return
 
         if result:
             # Deal found — move to waiting_phone
@@ -79,13 +87,19 @@ async def _handle_waiting_inn(
                 reply_markup=phone_share_keyboard(),
             )
         else:
-            # INN not in Bitrix
-            ai_text = await openai_svc.inn_not_found()
-            await message.answer(ai_text or FALLBACK_INN_NOT_FOUND)
+            # INN not in Bitrix — increment error counter
+            error_count = session.get("error_count", 0) + 1
+            await supabase.update_session(message.chat.id, error_count=error_count)
+            escalate = error_count >= 2
+            ai_text = await openai_svc.inn_not_found(escalate=escalate)
+            await message.answer(ai_text or (FALLBACK_INN_NOT_FOUND_ESCALATE if escalate else FALLBACK_INN_NOT_FOUND))
     else:
-        # No valid INN in message
-        ai_text = await openai_svc.no_inn_in_text(text, digit_count)
-        await message.answer(ai_text or FALLBACK_NO_INN)
+        # No valid INN in message — increment error counter
+        error_count = session.get("error_count", 0) + 1
+        await supabase.update_session(message.chat.id, error_count=error_count)
+        escalate = error_count >= 2
+        ai_text = await openai_svc.no_inn_in_text(text, digit_count, escalate=escalate)
+        await message.answer(ai_text or (FALLBACK_NO_INN_ESCALATE if escalate else FALLBACK_NO_INN))
 
 
 async def _handle_waiting_phone(

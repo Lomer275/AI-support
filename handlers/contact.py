@@ -13,7 +13,7 @@ from utils import moscow_now, normalize_phone
 logger = logging.getLogger(__name__)
 router = Router()
 
-FALLBACK_PHONE_MISMATCH = "Номер не совпадает. Обратитесь к менеджеру."
+FALLBACK_PHONE_MISMATCH = "Номер не совпадает. Напишите нам в поддержку @Lobster_21, и мы разберёмся с вашей проблемой."
 
 
 @router.message(F.contact)

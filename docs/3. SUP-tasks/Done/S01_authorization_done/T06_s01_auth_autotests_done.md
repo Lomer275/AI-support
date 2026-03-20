@@ -1,5 +1,6 @@
 Дата: 2026-03-20
-Статус: draft
+Статус: ✅ accepted
+Дата завершения: 2026-03-20
 Спецификация: docs/2. SUP-specifications/S01_authorization.md
 
 # T06 — Автотесты авторизации через Telegram MCP

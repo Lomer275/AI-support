@@ -14,6 +14,7 @@ class Settings:
     bitrix_webhook_base: str
     openai_api_key: str
     openai_model: str
+    openai_proxy: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -24,6 +25,7 @@ class Settings:
             bitrix_webhook_base=os.environ["BITRIX_WEBHOOK_BASE"],
             openai_api_key=os.environ["OPENAI_API_KEY"],
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            openai_proxy=os.getenv("OPENAI_PROXY"),
         )
 
 

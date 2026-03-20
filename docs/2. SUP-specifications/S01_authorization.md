@@ -23,7 +23,7 @@
 - [ ] Эскалация при несовпадении телефона (T03)
 - [ ] Отдельный ответ при недоступности Bitrix (T04)
 - [ ] Консультативный режим во время авторизации (T05)
-- [ ] Автотесты через Telegram MCP (T06)
+- [x] Автотесты через Telegram MCP (T06)
 
 ### Не входит:
 
@@ -101,11 +101,11 @@ tests/
 | ID  | Задача | Зависит от | Статус |
 |-----|--------|------------|--------|
 | T01 | [/start для авторизованного клиента](../3.%20SUP-tasks/Done/S01_authorization_done/T01_s01_start_already_authorized_done.md) | — | ✅ 2026-03-20 |
-| T02 | [Счётчик ошибок ИНН + двухэтапная эскалация](../3.%20SUP-tasks/T02_s01_inn_error_counter.md) | — | 🟡 To Do |
-| T03 | [Эскалация при несовпадении телефона](../3.%20SUP-tasks/T03_s01_phone_mismatch_escalation.md) | — | 🟡 To Do |
-| T04 | [Обработка недоступности Bitrix](../3.%20SUP-tasks/T04_s01_bitrix_unavailable.md) | — | 🟡 To Do |
-| T05 | [Консультативный режим во время авторизации](../3.%20SUP-tasks/T05_s01_auth_consultative_mode.md) | — | 🟡 To Do |
-| T06 | [Автотесты авторизации через Telegram MCP](../3.%20SUP-tasks/T06_s01_auth_autotests.md) | T01–T05 | 🟡 To Do |
+| T02 | [Счётчик ошибок ИНН + двухэтапная эскалация](../3.%20SUP-tasks/Done/S01_authorization_done/T02_s01_inn_error_counter_done.md) | — | ✅ 2026-03-20 |
+| T03 | [Эскалация при несовпадении телефона](../3.%20SUP-tasks/Done/S01_authorization_done/T03_s01_phone_mismatch_escalation_done.md) | — | ✅ 2026-03-20 |
+| T04 | [Обработка недоступности Bitrix](../3.%20SUP-tasks/Done/S01_authorization_done/T04_s01_bitrix_unavailable_done.md) | — | ✅ 2026-03-20 |
+| T05 | [Консультативный режим во время авторизации](../3.%20SUP-tasks/Done/S01_authorization_done/T05_s01_auth_consultative_mode_done.md) | — | ✅ 2026-03-20 |
+| T06 | [Автотесты авторизации через Telegram MCP](../3.%20SUP-tasks/Done/S01_authorization_done/T06_s01_auth_autotests_done.md) | T01–T05 | ✅ 2026-03-20 |
 
 ---
 
@@ -118,7 +118,7 @@ tests/
 - [ ] При недоступности Bitrix — клиент видит "технические проблемы", а не "ИНН не найден"
 - [ ] В `WAITING_INN`: вопрос "где найти ИНН?" → Алина объясняет + напоминает про ввод ИНН
 - [ ] В `WAITING_PHONE`: вопрос "зачем телефон?" → Алина объясняет + кнопка поделиться
-- [ ] Автотесты T06 проходят зелёным по всем сценариям state machine
+- [x] Автотесты T06 проходят зелёным по всем сценариям state machine
 
 ---
 
