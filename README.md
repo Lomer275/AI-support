@@ -1,6 +1,6 @@
 # Alina — AI-поддержка клиентов АрбитрА
 
-**Текущая версия:** v1.0.0 (первичный запуск)
+**Текущая версия:** v1.1.0 (S01 Authorization complete)
 
 > Документация проекта: [`docs/`](docs/)
 > Конвенции: [`docs/4. SUP-guides/doc_conventions.md`](docs/4.%20SUP-guides/doc_conventions.md)
@@ -31,11 +31,12 @@ Telegram-бот **Алина** — AI-ассистент клиентской п
 ### State Machine
 
 ```
-/start → WAITING_INN → WAITING_PHONE → AUTHORIZED
-               ↑ (ИНН не найден)     ↑ (телефон не совпал)
+/start (не авторизован) → WAITING_INN → WAITING_PHONE → AUTHORIZED
+                                  ↑ (ИНН не найден)     ↑ (телефон не совпал)
+/start (авторизован) → показывает меню, сессия не сбрасывается
 ```
 
-`/start` всегда сбрасывает сессию в `waiting_inn`.
+`/start` сбрасывает сессию в `waiting_inn` только для неавторизованных. Для уже авторизованного клиента открывает главное меню.
 
 ## Requirements
 
@@ -78,6 +79,7 @@ SUPABASE_ANON_KEY=   # Anon key Supabase
 BITRIX_WEBHOOK_BASE= # Base URL Bitrix24 webhook (без слеша в конце)
 OPENAI_API_KEY=      # OpenAI API key
 OPENAI_MODEL=        # Модель OpenAI, например: gpt-4o-mini
+OPENAI_PROXY=        # Опционально: HTTP/SOCKS5 прокси для запросов к OpenAI
 ```
 
 ## Running
@@ -135,6 +137,19 @@ docker compose down
 ├── requirements.txt
 └── .env                     # Секреты (НЕ КОММИТИТЬ)
 ```
+
+## Authorization Flow Details
+
+Реализованные граничные сценарии (S01, все задачи выполнены):
+
+| Сценарий | Поведение |
+|---------|-----------|
+| `/start` при AUTHORIZED | Показывает меню, сессия не сбрасывается |
+| ИНН не найден (1-я попытка) | AI-ответ без упоминания поддержки |
+| ИНН не найден (2-я+ попытка) | AI-ответ + обязательное упоминание @Lobster_21 |
+| Телефон не совпал | AI-ответ + обязательное упоминание @Lobster_21 |
+| Bitrix недоступен (исключение) | «Технические проблемы», `error_count` не растёт |
+| Вопрос по процедуре в `WAITING_INN/PHONE` | Алина отвечает + возвращает клиента к текущему шагу |
 
 ## Bitrix24 Integration Notes
 

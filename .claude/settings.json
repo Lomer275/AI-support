@@ -1,6 +1,10 @@
 {
-  "enabledPlugins": {},
   "permissions": {
     "defaultMode": "bypassPermissions"
-}
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true
+  }
 }

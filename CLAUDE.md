@@ -28,11 +28,12 @@ No test suite exists. Manual testing follows the state machine flow described in
 Session state is persisted in **Supabase** table `bot_sessions` (keyed by `chat_id`), not Aiogram FSM. States are defined in `states.py` as string constants (`"waiting_inn"`, `"waiting_phone"`, `"authorized"`):
 
 ```
-/start → WAITING_INN → WAITING_PHONE → AUTHORIZED
-                 ↑ (INN not found)     ↑ (phone mismatch)
+/start (not AUTHORIZED) → WAITING_INN → WAITING_PHONE → AUTHORIZED
+                                  ↑ (INN not found)     ↑ (phone mismatch)
+/start (AUTHORIZED) → shows menu, no reset
 ```
 
-`/start` always resets the session to `waiting_inn`, clearing all CRM fields.
+`/start` in non-authorized states resets the session to `waiting_inn`, clearing all CRM fields and `error_count`. If already `AUTHORIZED`, `/start` shows the menu without resetting.
 
 ### Request Flow
 
@@ -50,7 +51,15 @@ All three services (`SupabaseService`, `BitrixService`, `OpenAIService`) share a
 `handlers/contact.py` handles the `F.contact` update (Telegram share-phone button). Only acts in `WAITING_PHONE` state:
 1. Normalizes both phones to last 10 digits
 2. **Match:** calls `bitrix.update_deal_authorized()`, updates session to `AUTHORIZED`, sends 2-message welcome (welcome text + menu)
-3. **Mismatch:** calls `openai_svc.phone_mismatch()` and sends AI response
+3. **Mismatch:** calls `openai_svc.phone_mismatch()` — response always includes @Lobster_21 escalation contact
+
+### INN Error Counter
+
+`error_count` is stored in `bot_sessions` and incremented on every failed attempt in `WAITING_INN` (invalid INN format or INN not found in Bitrix — both count). Escalation tiers:
+- `error_count = 1`: standard AI response
+- `error_count >= 2`: AI response + mandatory mention of @Lobster_21
+
+`error_count` resets to 0 on `/start`. Bitrix unavailability (exception) does **not** increment the counter.
 
 ### Handler Registration Order (important)
 
@@ -103,6 +112,7 @@ SUPABASE_ANON_KEY=   # Supabase anon key
 BITRIX_WEBHOOK_BASE= # Bitrix24 webhook base URL (no trailing slash)
 OPENAI_API_KEY=      # OpenAI API key
 OPENAI_MODEL=        # e.g. gpt-4o-mini
+OPENAI_PROXY=        # Optional: HTTP/SOCKS5 proxy URL for OpenAI calls
 ```
 
 ## Deployment Note
