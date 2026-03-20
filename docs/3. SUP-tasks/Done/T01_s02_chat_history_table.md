@@ -1,5 +1,5 @@
 Дата: 2026-03-20
-Статус: ⬜ pending
+Статус: ✅ done
 Спецификация: docs/2. SUP-specifications/S02_multi_agent_chat.md
 
 # T01 — Создать таблицу `chat_history` в Supabase support
@@ -36,6 +36,6 @@ CREATE INDEX idx_chat_history_chat_id_created
 
 ## Критерии приёмки
 
-- [ ] Таблица `chat_history` создана в проекте `sgsxxmxybcysvbfsohau`
-- [ ] Индекс `idx_chat_history_chat_id_created` существует
-- [ ] Anon-ключ может INSERT и SELECT из таблицы (RLS настроен или отключён)
+- [x] Таблица `chat_history` создана в проекте `sgsxxmxybcysvbfsohau`
+- [x] Индекс `idx_chat_history_chat_id_created` существует
+- [x] Anon-ключ может INSERT и SELECT из таблицы (RLS настроен или отключён)

@@ -1,5 +1,5 @@
 Дата: 2026-03-20
-Статус: ⬜ pending
+Статус: ✅ done
 Спецификация: docs/2. SUP-specifications/S02_multi_agent_chat.md
 
 # T06 — Обновить `config.py` и `.env`

@@ -13,6 +13,8 @@ from middlewares.session import SessionMiddleware
 from services.supabase import SupabaseService
 from services.bitrix import BitrixService
 from services.openai_client import OpenAIService
+from services.supabase_support import SupportSupabaseService
+from services.support import SupportService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,11 +39,25 @@ async def main():
     supabase = SupabaseService(http_session)
     bitrix = BitrixService(http_session)
     openai_svc = OpenAIService(http_session)
+    supabase_support = SupportSupabaseService(
+        http_session,
+        settings.supabase_support_url,
+        settings.supabase_support_anon_key,
+    )
+    support_svc = SupportService(
+        http_session=http_session,
+        supabase_support=supabase_support,
+        openai_api_key=settings.openai_api_key,
+        model_support=settings.openai_model_support,
+        model_coordinator=settings.openai_model_coordinator,
+        openai_proxy=settings.openai_proxy,
+    )
 
     # Pass services to handlers via workflow_data
     dp["supabase"] = supabase
     dp["bitrix"] = bitrix
     dp["openai_svc"] = openai_svc
+    dp["support_svc"] = support_svc
 
     # Register middleware
     dp.message.outer_middleware(SessionMiddleware(supabase))

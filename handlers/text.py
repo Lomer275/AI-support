@@ -1,12 +1,15 @@
+import asyncio
 import logging
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
+from aiogram.enums import ChatAction
 from aiogram.types import Message
 
 from keyboards import back_to_menu_keyboard, main_menu_keyboard, phone_share_keyboard
 from services.bitrix import BitrixService
 from services.openai_client import OpenAIService
 from services.supabase import SupabaseService
+from services.support import SupportService
 from states import SessionState
 from utils import extract_inn
 
@@ -29,10 +32,12 @@ FALLBACK_BITRIX_UNAVAILABLE = "Возникли временные технич�
 @router.message(F.text)
 async def handle_text(
     message: Message,
+    bot: Bot,
     session: dict,
     supabase: SupabaseService,
     bitrix: BitrixService,
     openai_svc: OpenAIService,
+    support_svc: SupportService,
     **kwargs,
 ):
     state = session.get("state", "waiting_inn")
@@ -43,7 +48,7 @@ async def handle_text(
     elif state == SessionState.WAITING_PHONE:
         await _handle_waiting_phone(message, text, openai_svc)
     elif state == SessionState.AUTHORIZED:
-        await _handle_authorized(message, text, session, openai_svc)
+        await _handle_authorized(message, bot, text, session, openai_svc, support_svc)
     else:
         # Unknown state — treat as waiting_inn
         await _handle_waiting_inn(message, text, session, supabase, bitrix, openai_svc)
@@ -116,9 +121,11 @@ async def _handle_waiting_phone(
 
 async def _handle_authorized(
     message: Message,
+    bot: Bot,
     text: str,
     session: dict,
     openai_svc: OpenAIService,
+    support_svc: SupportService,
 ):
     if not text.strip():
         # Empty text — show menu
@@ -129,8 +136,36 @@ async def _handle_authorized(
         )
         return
 
+    chat_id = message.chat.id
     contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"
-    ai_text = await openai_svc.chat_as_alina(text, contact_name)
+    inn = session.get("inn") or ""
+
+    # Send initial typing indicator and start background loop
+    await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+    stop_typing = asyncio.Event()
+
+    async def _typing_loop():
+        while not stop_typing.is_set():
+            await asyncio.sleep(4)
+            if not stop_typing.is_set():
+                await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+    typing_task = asyncio.create_task(_typing_loop())
+
+    try:
+        ai_text = await support_svc.answer(chat_id, inn, text, contact_name)
+    except Exception:
+        logger.exception("SupportService.answer failed, falling back to chat_as_alina")
+        try:
+            ai_text = await openai_svc.chat_as_alina(text, contact_name)
+        except Exception:
+            logger.exception("chat_as_alina fallback also failed")
+            ai_text = None
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
+
     await message.answer(
         ai_text or FALLBACK_ALINA,
         reply_markup=back_to_menu_keyboard(),

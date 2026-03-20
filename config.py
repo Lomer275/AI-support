@@ -15,6 +15,10 @@ class Settings:
     openai_api_key: str
     openai_model: str
     openai_proxy: str | None
+    supabase_support_url: str
+    supabase_support_anon_key: str
+    openai_model_support: str
+    openai_model_coordinator: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -26,6 +30,10 @@ class Settings:
             openai_api_key=os.environ["OPENAI_API_KEY"],
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             openai_proxy=os.getenv("OPENAI_PROXY"),
+            supabase_support_url=os.environ["SUPABASE_SUPPORT_URL"],
+            supabase_support_anon_key=os.environ["SUPABASE_SUPPORT_ANON_KEY"],
+            openai_model_support=os.getenv("OPENAI_MODEL_SUPPORT", "gpt-4o-mini"),
+            openai_model_coordinator=os.getenv("OPENAI_MODEL_COORDINATOR", "gpt-4o"),
         )
 
 

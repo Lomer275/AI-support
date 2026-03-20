@@ -205,14 +205,14 @@ class SupportService:
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T01 | Создать таблицу `chat_history` в Supabase support (sgsxxmxybcysvbfsohau) | — | pending |
-| T02 | Реализовать `SupportSupabaseService`: `search_client_by_inn` + форматтер (логика из Formatter-ноды `Support_new.json`), `get_chat_history`, `save_chat_message` | T01 | pending |
-| T03 | Реализовать `SupportService` — R1-раунд: методы `_r1_lawyer`, `_r1_manager`, `_r1_sales` с промптами из `Support_new.json`; каждый метод принимает только свои входы согласно таблице агентов | T02 | pending |
-| T04 | Реализовать `SupportService` — R2-раунд: методы `_r2_lawyer`, `_r2_manager`, `_r2_sales`; сборка `full_discussion` по формату из `Prepare Coordinator`-ноды | T03 | pending |
-| T05 | Реализовать `SupportService` — Координатор и точка входа: метод `_coordinator` + публичный `answer()`; JSON-парсинг с fallback; обработка `switcher` (заглушка) | T04 | pending |
-| T06 | Обновить `config.py` и `.env` (4 новые переменные: `SUPABASE_SUPPORT_URL`, `SUPABASE_SUPPORT_ANON_KEY`, `OPENAI_MODEL_SUPPORT`, `OPENAI_MODEL_COORDINATOR`) | — | pending |
-| T07 | Обновить `bot.py` — инициализация `SupportSupabaseService` + `SupportService`, `dp["support_svc"]` | T05, T06 | pending |
-| T08 | Обновить `handlers/text.py`: `_handle_authorized()` читает `session["inn"]` и `contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"`; вызывает `bot.send_chat_action(TYPING)`, затем `support_svc.answer()`; при исключении — fallback на `chat_as_alina`. Повтор `send_chat_action` каждые ~4 сек (фоновый цикл). *Предварительно:* проверить что RPC `get_or_create_session` возвращает поле `inn` | T07 | pending |
+| T01 | Создать таблицу `chat_history` в Supabase support (sgsxxmxybcysvbfsohau) | — | ✅ done |
+| T02 | Реализовать `SupportSupabaseService`: `search_client_by_inn` + форматтер (логика из Formatter-ноды `Support_new.json`), `get_chat_history`, `save_chat_message` | T01 | ✅ done |
+| T03 | Реализовать `SupportService` — R1-раунд: методы `_r1_lawyer`, `_r1_manager`, `_r1_sales` с промптами из `Support_new.json`; каждый метод принимает только свои входы согласно таблице агентов | T02 | ✅ done |
+| T04 | Реализовать `SupportService` — R2-раунд: методы `_r2_lawyer`, `_r2_manager`, `_r2_sales`; сборка `full_discussion` по формату из `Prepare Coordinator`-ноды | T03 | ✅ done |
+| T05 | Реализовать `SupportService` — Координатор и точка входа: метод `_coordinator` + публичный `answer()`; JSON-парсинг с fallback; обработка `switcher` (заглушка) | T04 | ✅ done |
+| T06 | Обновить `config.py` и `.env` (4 новые переменные: `SUPABASE_SUPPORT_URL`, `SUPABASE_SUPPORT_ANON_KEY`, `OPENAI_MODEL_SUPPORT`, `OPENAI_MODEL_COORDINATOR`) | — | ✅ done |
+| T07 | Обновить `bot.py` — инициализация `SupportSupabaseService` + `SupportService`, `dp["support_svc"]` | T05, T06 | ✅ done |
+| T08 | Обновить `handlers/text.py`: `_handle_authorized()` читает `session["inn"]` и `contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"`; вызывает `bot.send_chat_action(TYPING)`, затем `support_svc.answer()`; при исключении — fallback на `chat_as_alina`. Повтор `send_chat_action` каждые ~4 сек (фоновый цикл). *Предварительно:* проверить что RPC `get_or_create_session` возвращает поле `inn` | T07 | ✅ done |
 | T09 | Тестирование: пройти сценарии вручную через Telegram — типовой вопрос с документами, вопрос без документов, второй вопрос (проверка памяти), падение агента (fallback), перезапуск бота (персистентность истории); проверить регрессию `WAITING_INN` / `WAITING_PHONE` | T08 | pending |
 
 ---
