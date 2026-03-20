@@ -1,6 +1,6 @@
 # S02: Multi-Agent Chat (Ответы на типовые вопросы)
 
-**Статус:** 🟡 Draft
+**Статус:** ✅ Done
 **Версия:** 1.1
 **Дата создания:** 2026-03-20
 **Автор:** zhiga
@@ -213,7 +213,7 @@ class SupportService:
 | T06 | Обновить `config.py` и `.env` (4 новые переменные: `SUPABASE_SUPPORT_URL`, `SUPABASE_SUPPORT_ANON_KEY`, `OPENAI_MODEL_SUPPORT`, `OPENAI_MODEL_COORDINATOR`) | — | ✅ done |
 | T07 | Обновить `bot.py` — инициализация `SupportSupabaseService` + `SupportService`, `dp["support_svc"]` | T05, T06 | ✅ done |
 | T08 | Обновить `handlers/text.py`: `_handle_authorized()` читает `session["inn"]` и `contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"`; вызывает `bot.send_chat_action(TYPING)`, затем `support_svc.answer()`; при исключении — fallback на `chat_as_alina`. Повтор `send_chat_action` каждые ~4 сек (фоновый цикл). *Предварительно:* проверить что RPC `get_or_create_session` возвращает поле `inn` | T07 | ✅ done |
-| T09 | Тестирование: пройти сценарии вручную через Telegram — типовой вопрос с документами, вопрос без документов, второй вопрос (проверка памяти), падение агента (fallback), перезапуск бота (персистентность истории); проверить регрессию `WAITING_INN` / `WAITING_PHONE` | T08 | pending |
+| T09 | Тестирование: пройти сценарии вручную через Telegram — типовой вопрос с документами, вопрос без документов, второй вопрос (проверка памяти), падение агента (fallback), перезапуск бота (персистентность истории); проверить регрессию `WAITING_INN` / `WAITING_PHONE` | T08 | ✅ done |
 
 ---
 

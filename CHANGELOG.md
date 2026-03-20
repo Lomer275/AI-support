@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — S02: Multi-Agent Chat
+## [0.2.0] — S02: Multi-Agent Chat
 
 ### 2026-03-20
 
