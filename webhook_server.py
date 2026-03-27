@@ -69,8 +69,8 @@ def _parse_session_finish(post: dict) -> str | None:
 
 # ── Event handlers ───────────────────────────────────────────────────────────
 
-async def _handle_message(post: dict, bot: Bot) -> None:
-    """Forward operator message to Telegram client."""
+async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> None:
+    """Forward operator message to Telegram client and update operator_last_reply_at."""
     parsed = _parse_message(post)
     raw_chat_id = parsed["chat_id"]
     if not raw_chat_id:
@@ -102,6 +102,10 @@ async def _handle_message(post: dict, bot: Bot) -> None:
             logger.warning(
                 "Failed to send file to chat_id=%s url=%s", chat_id, file_url
             )
+
+    # Track operator activity for watchdog timeout
+    from utils import moscow_now
+    await supabase.update_session(chat_id, operator_last_reply_at=moscow_now())
 
     logger.info("Operator message forwarded to chat_id=%s", chat_id)
 
@@ -156,7 +160,7 @@ async def handle_bitrix_webhook(request: web.Request) -> web.Response:
 
     try:
         if event == "ONIMCONNECTORMESSAGEADD":
-            await _handle_message(post, request.app["bot"])
+            await _handle_message(post, request.app["bot"], request.app["supabase"])
         elif event == "IMOPENLINES.SESSION.FINISH":
             await _handle_session_finish(
                 post, request.app["bot"], request.app["supabase"]

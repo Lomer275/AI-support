@@ -54,3 +54,25 @@ class SupabaseService:
         except Exception:
             logger.exception("Supabase update_session failed")
             return False
+
+    async def get_escalated_sessions(self, timeout_minutes: int = 60) -> list[dict]:
+        """Return sessions where escalated=true and escalated_at older than timeout_minutes.
+
+        Used by the watchdog to auto-return clients to AI after operator inactivity.
+        """
+        url = (
+            f"{self._base}/bot_sessions"
+            f"?escalated=eq.true"
+            f"&escalated_at=lt.now()-interval+'{timeout_minutes}+minutes'"
+            f"&select=chat_id,contact_name"
+        )
+        try:
+            async with self._session.get(url, headers=self._headers) as resp:
+                if resp.status >= 400:
+                    text = await resp.text()
+                    logger.warning("get_escalated_sessions HTTP %s: %s", resp.status, text[:200])
+                    return []
+                return await resp.json()
+        except Exception:
+            logger.exception("get_escalated_sessions failed")
+            return []

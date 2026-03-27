@@ -144,7 +144,7 @@ async def run(limit: int, output_path: pathlib.Path, inn: str) -> None:
             logger.info("[%d/%d] %s", i, len(questions), question[:80])
 
             try:
-                answer = await support_svc.answer(
+                answer, _switcher, _esc = await support_svc.answer(
                     chat_id=chat_id,
                     inn=resolved_inn,
                     question=question,

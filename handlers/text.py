@@ -8,11 +8,12 @@ from aiogram.types import Message
 
 from keyboards import phone_share_keyboard
 from services.bitrix import BitrixService
+from services.imconnector import ImConnectorService
 from services.openai_client import OpenAIService
 from services.supabase import SupabaseService
 from services.support import SupportService
 from states import SessionState
-from utils import extract_inn
+from utils import extract_inn, moscow_now
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -39,6 +40,7 @@ async def handle_text(
     bitrix: BitrixService,
     openai_svc: OpenAIService,
     support_svc: SupportService,
+    imconnector_svc: ImConnectorService,
     **kwargs,
 ):
     state = session.get("state", "waiting_inn")
@@ -49,7 +51,7 @@ async def handle_text(
     elif state == SessionState.WAITING_PHONE:
         await _handle_waiting_phone(message, text, openai_svc)
     elif state == SessionState.AUTHORIZED:
-        await _handle_authorized(message, bot, text, session, bitrix, openai_svc, support_svc)
+        await _handle_authorized(message, bot, text, session, supabase, bitrix, openai_svc, support_svc, imconnector_svc)
     else:
         # Unknown state — treat as waiting_inn
         await _handle_waiting_inn(message, text, session, supabase, bitrix, openai_svc)
@@ -125,9 +127,11 @@ async def _handle_authorized(
     bot: Bot,
     text: str,
     session: dict,
+    supabase: SupabaseService,
     bitrix: BitrixService,
     openai_svc: OpenAIService,
     support_svc: SupportService,
+    imconnector_svc: ImConnectorService,
 ):
     if not text.strip():
         await message.answer("Задайте любой вопрос по вашему делу — я отвечу.")
@@ -137,6 +141,13 @@ async def _handle_authorized(
     contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"
     inn = session.get("inn") or ""
     deal_id = session.get("deal_id") or ""
+
+    # ── Escalation routing ────────────────────────────────────────────────────
+    # If session is escalated, forward message to operator and skip AI entirely.
+    if session.get("escalated"):
+        await imconnector_svc.send_message(chat_id, contact_name, text)
+        logger.info("Escalated message forwarded to operator for chat_id=%s", chat_id)
+        return
 
     # Send initial typing indicator and start background loop
     await bot.send_chat_action(chat_id, ChatAction.TYPING)
@@ -151,6 +162,8 @@ async def _handle_authorized(
 
     typing_task = asyncio.create_task(_typing_loop())
 
+    switcher = "false"
+    escalation_type = "none"
     try:
         deal_profile = ""
         if deal_id:
@@ -159,7 +172,9 @@ async def _handle_authorized(
             except Exception:
                 logger.exception("get_deal_profile failed for deal_id=%s", deal_id)
 
-        ai_text = await support_svc.answer(chat_id, inn, text, contact_name, deal_profile)
+        ai_text, switcher, escalation_type = await support_svc.answer(
+            chat_id, inn, text, contact_name, deal_profile
+        )
     except Exception:
         logger.exception("SupportService.answer failed, falling back to chat_as_alina")
         try:
@@ -172,3 +187,21 @@ async def _handle_authorized(
         typing_task.cancel()
 
     await message.answer(ai_text or FALLBACK_ALINA)
+
+    # ── Escalate to operator if switcher=true ─────────────────────────────────
+    if switcher == "true":
+        # Best-effort: get history for context via support_svc internal supabase
+        try:
+            history = await support_svc._supabase.get_chat_history(chat_id)
+        except Exception:
+            history = []
+
+        await imconnector_svc.send_escalation(chat_id, contact_name, text, history)
+        await supabase.update_session(
+            chat_id,
+            escalated=True,
+            escalated_at=moscow_now(),
+        )
+        logger.info(
+            "Session escalated for chat_id=%s escalation_type=%s", chat_id, escalation_type
+        )

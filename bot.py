@@ -96,6 +96,32 @@ async def main():
     await site.start()
     logger.info("Webhook server started on port %s", settings.webhook_port)
 
+    # ── Escalation watchdog ───────────────────────────────────────────────────
+    async def escalation_watchdog():
+        """Check every 5 min for escalated sessions with no operator reply > 1 hour.
+
+        Resets escalated=false and notifies the client that AI is back.
+        """
+        while True:
+            await asyncio.sleep(5 * 60)
+            try:
+                timed_out = await supabase.get_escalated_sessions(timeout_minutes=60)
+                for row in timed_out:
+                    chat_id = int(row["chat_id"])
+                    await supabase.update_session(chat_id, escalated=False)
+                    try:
+                        await bot.send_message(
+                            chat_id,
+                            "Похоже, специалист пока не ответил. Я снова здесь — чем могу помочь?",
+                        )
+                    except Exception:
+                        logger.warning("Watchdog: failed to notify chat_id=%s", chat_id)
+                    logger.info("Watchdog: auto-returned AI for chat_id=%s", chat_id)
+            except Exception:
+                logger.exception("Escalation watchdog iteration failed")
+
+    asyncio.create_task(escalation_watchdog())
+
     logger.info("Bot starting...")
     try:
         await dp.start_polling(bot)

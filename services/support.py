@@ -476,7 +476,12 @@ class SupportService:
         question: str,
         contact_name: str,
         deal_profile: str = "",
-    ) -> str:
+    ) -> tuple[str, str, str]:
+        """Return (answer_text, switcher, escalation_type).
+
+        switcher: "true" | "false"
+        escalation_type: "none" | "conflict" | "request"
+        """
         history = await self._supabase.get_chat_history(chat_id)
         judicial_docs = await self._supabase.search_client_by_inn(inn)
 
@@ -554,4 +559,6 @@ class SupportService:
         await self._supabase.save_chat_message(chat_id, "user", question)
         await self._supabase.save_chat_message(chat_id, "assistant", final_answer)
 
-        return final_answer
+        switcher = result.get("switcher", "false")
+        escalation_type = result.get("escalation_type", "none")
+        return final_answer, switcher, escalation_type
