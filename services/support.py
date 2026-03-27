@@ -1,10 +1,14 @@
 import asyncio
 import json
 import logging
+from typing import TYPE_CHECKING
 
 import aiohttp
 
 from services.supabase_support import SupportSupabaseService
+
+if TYPE_CHECKING:
+    from services.evaluator import EvaluatorService
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +46,7 @@ class SupportService:
         model_support: str,
         model_coordinator: str,
         openai_proxy: str | None = None,
+        evaluator: "EvaluatorService | None" = None,
     ):
         self._session = http_session
         self._supabase = supabase_support
@@ -50,6 +55,18 @@ class SupportService:
         self._model_coordinator = model_coordinator
         self._proxy = openai_proxy
         self._openai_url = "https://api.openai.com/v1/chat/completions"
+        self._evaluator = evaluator
+
+    # Retry if accuracy OR completeness is clearly poor (≤3).
+    # Specificity is excluded — it's low by design without client data.
+    # Tone is excluded — rarely the root cause of a bad answer.
+    _RETRY_THRESHOLD = 3.5
+
+    def _should_retry(self, scores: dict) -> bool:
+        return (
+            scores.get("accuracy", 5) < self._RETRY_THRESHOLD
+            or scores.get("completeness", 5) < self._RETRY_THRESHOLD
+        )
 
     # ------------------------------------------------------------------
     # Base OpenAI call
@@ -346,7 +363,7 @@ class SupportService:
     # ------------------------------------------------------------------
 
     async def _coordinator(
-        self, full_discussion: str, question: str, history: list[dict]
+        self, full_discussion: str, question: str, history: list[dict], eval_feedback: str = ""
     ) -> str | None:
         history_text = ""
         if history:
@@ -399,6 +416,12 @@ class SupportService:
             "7) ТОН: 2–4 предложения, спокойный, поддерживающий, без смайликов и жёстких гарантий.\n\n"
             "---\n\n"
             "И ВСЕГДА возвращай РОВНО ОДИН JSON-объект без какого-либо текста вокруг."
+            + (
+                f"\n\n---\n\n⚠️ ПОВТОРНАЯ ПОПЫТКА — ПРЕДЫДУЩИЙ ОТВЕТ БЫЛ ОЦЕНЁН КАК НЕДОСТАТОЧНЫЙ:\n"
+                f"{eval_feedback}\n"
+                "Учти эти замечания и дай улучшенный ответ."
+                if eval_feedback else ""
+            )
         )
         return await self._complete(
             system,
@@ -477,6 +500,36 @@ class SupportService:
 
         raw = await self._coordinator(full_discussion, question, history)
         result = self._parse_coordinator_output(raw)
+
+        # Inline quality gate — retry coordinator once if evaluator flags poor quality.
+        # Skip retry for escalation answers (switcher=true): they're short by design.
+        if self._evaluator and result.get("switcher") != "true":
+            first_answer = result.get("answer") or ""
+            try:
+                scores = await self._evaluator.evaluate(
+                    question=question,
+                    answer=first_answer,
+                    client_context=client_context,
+                )
+            except Exception:
+                logger.exception("Inline evaluator failed — skipping retry")
+                scores = None
+
+            if scores and self._should_retry(scores):
+                logger.info(
+                    "Quality retry triggered — accuracy=%.1f completeness=%.1f | %s",
+                    scores.get("accuracy", 0),
+                    scores.get("completeness", 0),
+                    scores.get("comment", "")[:120],
+                )
+                feedback = (
+                    f"accuracy={scores.get('accuracy')}/5, "
+                    f"completeness={scores.get('completeness')}/5, "
+                    f"tone={scores.get('tone')}/5.\n"
+                    f"Комментарий: {scores.get('comment', '')}"
+                )
+                raw = await self._coordinator(full_discussion, question, history, eval_feedback=feedback)
+                result = self._parse_coordinator_output(raw)
 
         final_answer = result.get("answer") or FALLBACK_ALINA
 

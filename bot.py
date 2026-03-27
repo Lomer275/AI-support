@@ -3,6 +3,7 @@ import logging
 
 import aiohttp
 from aiogram import Bot, Dispatcher
+from aiohttp import web
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
@@ -15,6 +16,9 @@ from services.bitrix import BitrixService
 from services.openai_client import OpenAIService
 from services.supabase_support import SupportSupabaseService
 from services.support import SupportService
+from services.evaluator import EvaluatorService
+from services.imconnector import ImConnectorService
+from webhook_server import create_webhook_app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +48,22 @@ async def main():
         settings.supabase_support_url,
         settings.supabase_support_anon_key,
     )
+    evaluator = EvaluatorService(
+        http_session=http_session,
+        openai_api_key=settings.openai_api_key,
+        model=settings.openai_model_coordinator,
+        openai_proxy=settings.openai_proxy,
+    )
+    imconnector_svc = ImConnectorService(
+        session=http_session,
+        bitrix_url=settings.bitrix_url,
+        client_id=settings.bitrix_oauth_client_id,
+        client_secret=settings.bitrix_oauth_client_secret,
+        access_token=settings.bitrix_oauth_access_token,
+        refresh_token=settings.bitrix_oauth_refresh_token,
+        openline_id=settings.bitrix_openline_id,
+        connector_id=settings.bitrix_connector_id,
+    )
     support_svc = SupportService(
         http_session=http_session,
         supabase_support=supabase_support,
@@ -51,6 +71,7 @@ async def main():
         model_support=settings.openai_model_support,
         model_coordinator=settings.openai_model_coordinator,
         openai_proxy=settings.openai_proxy,
+        evaluator=evaluator,
     )
 
     # Pass services to handlers via workflow_data
@@ -58,6 +79,7 @@ async def main():
     dp["bitrix"] = bitrix
     dp["openai_svc"] = openai_svc
     dp["support_svc"] = support_svc
+    dp["imconnector_svc"] = imconnector_svc
 
     # Register middleware
     dp.message.outer_middleware(SessionMiddleware(supabase))
@@ -66,10 +88,19 @@ async def main():
     # Register handlers
     register_all_handlers(dp)
 
+    # Webhook server (Bitrix operator replies)
+    webhook_app = create_webhook_app(bot, supabase)
+    runner = web.AppRunner(webhook_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", settings.webhook_port)
+    await site.start()
+    logger.info("Webhook server started on port %s", settings.webhook_port)
+
     logger.info("Bot starting...")
     try:
         await dp.start_polling(bot)
     finally:
+        await runner.cleanup()
         await http_session.close()
         await bot.session.close()
 

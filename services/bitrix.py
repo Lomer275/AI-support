@@ -12,26 +12,6 @@ FIELD_INN = "UF_CRM_1751273997835"
 FIELD_AUTH_STATUS = "UF_CRM_1768296374"
 FIELD_AUTH_TIMESTAMP = "UF_CRM_1768547250879"
 
-# Document checklist fields (enumeration: нет / ожидает получения / да)
-DOCUMENT_FIELDS: list[tuple[str, str]] = [
-    ("UF_CRM_1576013311213", "Паспорт (все страницы)"),
-    ("UF_CRM_1576013441400", "СНИЛС"),
-    ("UF_CRM_1576100885263", "ИНН"),
-    ("UF_CRM_1576012442895", "Кредитный договор"),
-    ("UF_CRM_1576012695632", "Справка из банка о задолженности"),
-    ("UF_CRM_1576013203796", "Нотариальная доверенность"),
-    ("UF_CRM_1576014979732", "Справка из ЕГРН о недвижимости"),
-    ("UF_CRM_1576015047314", "Справка из ГИБДД о транспорте"),
-    ("UF_CRM_1576015573599", "Справка из ФНС об отсутствии ИП/ЮЛ"),
-    ("UF_CRM_1576015802748", "Справка из ПФР о начислениях"),
-    ("UF_CRM_1576016214194", "2-НДФЛ за последние 3 года"),
-    ("UF_CRM_1576015446573", "Справка о составе семьи"),
-    ("UF_CRM_1576015504174", "Справка о состоянии инд. л/с"),
-    ("UF_CRM_1576015862044", "Копия трудовой книжки"),
-    ("UF_CRM_1576014861311", "Копии сделок за 3 года"),
-    ("UF_CRM_1576014922624", "Документы на имущество"),
-]
-
 STAGE_LABELS: dict[str, str] = {
     "C4:NEW":                "Сбор документов",
     "C4:2":                  "Замороженная сделка",
@@ -115,77 +95,108 @@ class BitrixService:
 
     async def get_deal_profile(self, deal_id: str) -> str:
         """Fetch deal stage, responsible manager, and document checklist from Bitrix.
-        Returns a formatted string for injection into client_context.
-        Returns empty string on failure (non-fatal).
+
+        Uses 2 batch requests:
+          Batch 1: crm.deal.get + tasks.task.list (find "Собрать ЛИЧНЫЕ" task)
+          Batch 2: user.get + tasks.task.get with CHECKLIST
+
+        Returns formatted string for injection into client_context.
+        Returns empty string on any failure (non-fatal).
         """
-        doc_selects = "".join(
-            f"&select[]={field_id}" for field_id, _ in DOCUMENT_FIELDS
-        )
         url = f"{self._base}/batch"
-        params = {
+
+        # ── Batch 1: deal info + find document task ──────────────────────
+        params1 = {
             "halt": "0",
             "cmd[deal]": (
                 f"crm.deal.get?ID={deal_id}"
-                f"&select[]=ID&select[]=STAGE_ID&select[]=ASSIGNED_BY_ID"
-                f"{doc_selects}"
+                f"&select[]=STAGE_ID&select[]=ASSIGNED_BY_ID"
             ),
-            "cmd[manager]": "user.get?ID=$result[deal][ASSIGNED_BY_ID]",
+            "cmd[tasks]": (
+                f"tasks.task.list"
+                f"?filter[UF_CRM_TASK][]=D_{deal_id}"
+                f"&select[]=ID&select[]=TITLE"
+                f"&start=0"
+            ),
         }
         try:
-            async with self._session.post(url, data=params) as resp:
-                data = await resp.json(content_type=None)
+            async with self._session.post(url, data=params1) as resp:
+                data1 = await resp.json(content_type=None)
         except Exception:
-            logger.exception("get_deal_profile request failed for deal_id=%s", deal_id)
+            logger.exception("get_deal_profile batch1 failed for deal_id=%s", deal_id)
             return ""
 
-        result = data.get("result", {}).get("result", {})
-        deal = result.get("deal") or {}
-        manager_list = result.get("manager") or []
+        result1 = data1.get("result", {}).get("result", {})
+        deal = result1.get("deal") or {}
         if not deal:
             return ""
 
         stage_id = deal.get("STAGE_ID", "")
         stage_label = STAGE_LABELS.get(stage_id, stage_id)
+        assigned_by_id = deal.get("ASSIGNED_BY_ID", "")
+
+        tasks_raw = result1.get("tasks") or {}
+        task_list = tasks_raw.get("tasks", []) if isinstance(tasks_raw, dict) else []
+        doc_task = next(
+            (t for t in task_list if "Собрать ЛИЧНЫЕ" in (t.get("title") or "")),
+            None,
+        )
+        task_id = doc_task["id"] if doc_task else None
+
+        # ── Batch 2: manager name + task checklist ────────────────────────
+        params2: dict[str, str] = {"halt": "0"}
+        if assigned_by_id:
+            params2["cmd[manager]"] = f"user.get?ID={assigned_by_id}"
+        if task_id:
+            params2["cmd[checklist]"] = (
+                f"tasks.task.get?taskId={task_id}&select[]=CHECKLIST"
+            )
 
         manager_name = ""
-        if isinstance(manager_list, list) and manager_list:
-            m = manager_list[0]
-            parts = [m.get("LAST_NAME", ""), m.get("NAME", ""), m.get("SECOND_NAME", "")]
-            manager_name = " ".join(p for p in parts if p).strip()
-        elif isinstance(manager_list, dict):
-            parts = [
-                manager_list.get("LAST_NAME", ""),
-                manager_list.get("NAME", ""),
-                manager_list.get("SECOND_NAME", ""),
-            ]
-            manager_name = " ".join(p for p in parts if p).strip()
+        checklist_lines: list[str] = []
 
-        # Build document checklist
-        doc_lines: list[str] = []
-        for field_id, doc_name in DOCUMENT_FIELDS:
-            value = (deal.get(field_id) or "").strip().lower()
-            if value == "да":
-                icon = "✅"
-                status = "предоставлен"
-            elif "ожидает" in value:
-                icon = "⏳"
-                status = "ожидает получения"
+        if len(params2) > 1:
+            try:
+                async with self._session.post(url, data=params2) as resp:
+                    data2 = await resp.json(content_type=None)
+            except Exception:
+                logger.exception("get_deal_profile batch2 failed for deal_id=%s", deal_id)
+                data2 = {}
+
+            result2 = data2.get("result", {}).get("result", {})
+
+            # Manager name
+            manager_raw = result2.get("manager") or []
+            if isinstance(manager_raw, list) and manager_raw:
+                m = manager_raw[0]
+            elif isinstance(manager_raw, dict):
+                m = manager_raw
             else:
-                continue  # skip "нет" to keep context concise
+                m = {}
+            if m:
+                parts = [m.get("LAST_NAME", ""), m.get("NAME", ""), m.get("SECOND_NAME", "")]
+                manager_name = " ".join(p for p in parts if p).strip()
 
-            doc_lines.append(f"{icon} {doc_name} — {status}")
+            # Checklist from task
+            checklist_resp = result2.get("checklist") or {}
+            raw_checklist = (checklist_resp.get("task") or {}).get("checklist") or {}
+            for item in raw_checklist.values():
+                if str(item.get("parentId", "0")) == "0":
+                    continue  # skip root BX_CHECKLIST_1
+                title = (item.get("title") or "")[:80]
+                icon = "✅" if item.get("isComplete") == "Y" else "⏳"
+                checklist_lines.append(f"  {icon} {title}")
 
+        # ── Format output ─────────────────────────────────────────────────
         lines = [
             "=== ПРОФИЛЬ КЛИЕНТА (Bitrix) ===",
             f"Стадия дела: {stage_label}",
         ]
         if manager_name:
             lines.append(f"Ответственный менеджер: {manager_name}")
-        if doc_lines:
-            lines.append("\nСтатус документов:")
-            lines.extend(doc_lines)
-        else:
-            lines.append("Статус документов: нет данных")
+        if checklist_lines:
+            lines.append("\nЧеклист документов:")
+            lines.extend(checklist_lines)
 
         return "\n".join(lines)
 

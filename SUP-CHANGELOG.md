@@ -3,6 +3,9 @@
 ## [Не выпущено]
 
 ### Added
+- S03/T14: `ImConnectorService` — отправка сообщений и истории диалога в Bitrix Open Lines через OAuth (`imconnector.send.messages`); автообновление access_token через refresh_token при истечении; `connector_id=tg_alina_support`, `openline_id=56` (принято 2026-03-27)
+- S03/T13: `EvaluatorService` + `scripts/quality_run.py` — автоматический прогон N вопросов через SupportService, оценка ответов по 4 критериям (specificity, accuracy, tone, completeness) с сохранением в JSON (принято 2026-03-27)
+- S03/T12: история последних 10 сообщений передана в `_r1_lawyer` и `_r1_manager`; координатор возвращает `escalation_type` (conflict/request/none) с дифференцированными человечными ответами вместо нейтральной заглушки (принято 2026-03-27)
 - S03/T10: `COMPANY_FACTS` — база знаний компании инжектирована во все 7 агентов и координатора; добавлены адреса и телефоны офисов (Барнаул, Воронеж, Краснодар), сайт, правило анти-галлюцинации (принято 2026-03-27)
 - 2026-03-20 — T06: автотесты авторизации через Telegram MCP + Supabase MCP — 6 авто-тестов (T1-T4, T7-T8), 2 ручных (phone contact); runbook в `docs/5. SUP-unsorted/T06_auth_tests_runbook.md`
 - 2026-03-20 — прокси для Docker: `OPENAI_PROXY` в `.env` используется и для Telegram (aiogram AiohttpSession), и для OpenAI — бот работает без VPN
