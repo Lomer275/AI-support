@@ -60,10 +60,12 @@ class SupabaseService:
 
         Used by the watchdog to auto-return clients to AI after operator inactivity.
         """
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)).isoformat()
         url = (
             f"{self._base}/bot_sessions"
             f"?escalated=eq.true"
-            f"&escalated_at=lt.now()-interval+'{timeout_minutes}+minutes'"
+            f"&escalated_at=lt.{cutoff}"
             f"&select=chat_id,contact_name"
         )
         try:
