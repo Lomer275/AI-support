@@ -1,11 +1,12 @@
 import asyncio
+import json
 import logging
 
 from aiogram import Bot, F, Router
 from aiogram.enums import ChatAction
 from aiogram.types import Message
 
-from keyboards import back_to_menu_keyboard, main_menu_keyboard, phone_share_keyboard
+from keyboards import phone_share_keyboard
 from services.bitrix import BitrixService
 from services.openai_client import OpenAIService
 from services.supabase import SupabaseService
@@ -48,7 +49,7 @@ async def handle_text(
     elif state == SessionState.WAITING_PHONE:
         await _handle_waiting_phone(message, text, openai_svc)
     elif state == SessionState.AUTHORIZED:
-        await _handle_authorized(message, bot, text, session, openai_svc, support_svc)
+        await _handle_authorized(message, bot, text, session, bitrix, openai_svc, support_svc)
     else:
         # Unknown state — treat as waiting_inn
         await _handle_waiting_inn(message, text, session, supabase, bitrix, openai_svc)
@@ -80,9 +81,9 @@ async def _handle_waiting_inn(
                 state=SessionState.WAITING_PHONE,
                 inn=result["inn"],
                 deal_id=result["deal_id"],
-                contact_id=result["contact_id"],
+                bitrix_contact_id=result["contact_id"],
                 contact_name=result["contact_name"],
-                bitrix_phone=result["bitrix_phone"],
+                context_data=json.dumps({"bitrix_phones": result["bitrix_phones"]}),
             )
 
             await message.answer(
@@ -124,21 +125,18 @@ async def _handle_authorized(
     bot: Bot,
     text: str,
     session: dict,
+    bitrix: BitrixService,
     openai_svc: OpenAIService,
     support_svc: SupportService,
 ):
     if not text.strip():
-        # Empty text — show menu
-        name = session.get("contact_name") or session.get("first_name") or "Клиент"
-        await message.answer(
-            f"\U0001f44b {name}! Выберите раздел:",
-            reply_markup=main_menu_keyboard(),
-        )
+        await message.answer("Задайте любой вопрос по вашему делу — я отвечу.")
         return
 
     chat_id = message.chat.id
     contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"
     inn = session.get("inn") or ""
+    deal_id = session.get("deal_id") or ""
 
     # Send initial typing indicator and start background loop
     await bot.send_chat_action(chat_id, ChatAction.TYPING)
@@ -154,7 +152,14 @@ async def _handle_authorized(
     typing_task = asyncio.create_task(_typing_loop())
 
     try:
-        ai_text = await support_svc.answer(chat_id, inn, text, contact_name)
+        deal_profile = ""
+        if deal_id:
+            try:
+                deal_profile = await bitrix.get_deal_profile(deal_id)
+            except Exception:
+                logger.exception("get_deal_profile failed for deal_id=%s", deal_id)
+
+        ai_text = await support_svc.answer(chat_id, inn, text, contact_name, deal_profile)
     except Exception:
         logger.exception("SupportService.answer failed, falling back to chat_as_alina")
         try:
@@ -166,7 +171,4 @@ async def _handle_authorized(
         stop_typing.set()
         typing_task.cancel()
 
-    await message.answer(
-        ai_text or FALLBACK_ALINA,
-        reply_markup=back_to_menu_keyboard(),
-    )
+    await message.answer(ai_text or FALLBACK_ALINA)

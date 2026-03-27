@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -11,6 +12,25 @@ FALLBACK_ALINA = (
     "Алина временно недоступна. Пожалуйста, повторите вопрос чуть позже "
     "или обратитесь к нашему специалисту @Lobster_21."
 )
+
+COMPANY_FACTS = """
+ФАКТЫ О КОМПАНИИ «ЭКСПРЕСС-БАНКРОТ» (только эти факты — правда, не выдумывай других):
+- Официальное название: ООО «Экспресс-Банкрот»
+- Сайт: www.express-bankrot.ru
+- Физические офисы: Краснодар, Воронеж, Барнаул. В других городах — только удалённая работа.
+- Офиса в Ростове-на-Дону НЕТ (был ранее, закрыт).
+- Время работы офисов: Пн-Пт с 9:00 до 18:00 по местному времени города.
+
+ОФИСЫ И ТЕЛЕФОНЫ:
+- Барнаул: ул. Деповская, д. 18. Тел.: +7 (3852) 29-92-02
+- Воронеж: ул. Фридриха Энгельса, д. 25Б, офис 102, БЦ БиК. Тел.: +7 (473) 280-01-01
+- Краснодар: ул. Кузнечная, д. 4А, 12 этаж, офис 5. Тел.: +7 (861) 205-64-64
+
+- Связь с клиентами: через этот чат, менеджеры свяжутся при необходимости.
+- Компания НЕ ведёт кассу клиента и НЕ распоряжается его деньгами.
+- Всё взаимодействие с судом и финансовым управляющим — в рамках закона и только через документы.
+ПРАВИЛО: если клиент спрашивает факт о компании, которого нет в этом блоке — не выдумывай. Скажи: «Этот вопрос лучше уточнить у нашего специалиста».
+"""
 
 
 class SupportService:
@@ -77,11 +97,21 @@ class SupportService:
     # R1 round
     # ------------------------------------------------------------------
 
-    async def _r1_lawyer(self, client_context: str, question: str) -> str | None:
+    async def _r1_lawyer(
+        self, client_context: str, question: str, history: list[dict]
+    ) -> str | None:
+        history_text = ""
+        if history:
+            lines = [f"{m['role'].upper()}: {m['content']}" for m in history]
+            history_text = (
+                "\n\nИСТОРИЯ ПРЕДЫДУЩЕГО ДИАЛОГА С КЛИЕНТОМ (учитывай — не запрашивай повторно то, что клиент уже сообщал):\n"
+                + "\n".join(lines)
+            )
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — ИИ-юрист по банкротству физических лиц в компании «Экспресс-Банкрот».\n"
             "Ты работаешь ТОЛЬКО для внутренних коллег. Клиент твой текст НЕ видит.\n\n"
-            f"***КОНТЕКСТ:*** {client_context}\n"
+            f"***КОНТЕКСТ:*** {client_context}{history_text}\n"
             f"***ВОПРОС:*** {question}\n\n"
             "ТВОЯ ЗАДАЧА:\n"
             "1. Коротко описать ситуацию клиента простым русским языком (2–4 предложения):\n"
@@ -121,12 +151,20 @@ class SupportService:
         return await self._complete(system, question, self._model_support)
 
     async def _r1_manager(
-        self, client_context: str, question: str, r1_lawyer: str
+        self, client_context: str, question: str, r1_lawyer: str, history: list[dict]
     ) -> str | None:
+        history_text = ""
+        if history:
+            lines = [f"{m['role'].upper()}: {m['content']}" for m in history]
+            history_text = (
+                "\n\nИСТОРИЯ ПРЕДЫДУЩЕГО ДИАЛОГА С КЛИЕНТОМ (учитывай при оценке эмоционального состояния — не запрашивай повторно то, что клиент уже сообщал):\n"
+                + "\n".join(lines)
+            )
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — ИИ-менеджер по сопровождению клиентов «Экспресс-Банкрот».\n"
             "Ты НЕ отвечаешь клиенту напрямую, ты помогаешь финальному агенту говорить по-человечески.\n\n"
-            f"***КОНТЕКСТ:*** {client_context}\n"
+            f"***КОНТЕКСТ:*** {client_context}{history_text}\n"
             f"***ВОПРОС:*** {question}\n"
             f"*** МНЕНИЕ ЮРИСТА R1:***  {r1_lawyer}\n\n"
             "ТВОЯ ЗАДАЧА:\n"
@@ -159,6 +197,7 @@ class SupportService:
 
     async def _r1_sales(self, client_context: str, question: str) -> str | None:
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — ИИ-куратор процесса и рисков компании «Экспресс-Банкрот».\n"
             "Фокус: этап процедуры, сроки, действия сторон и риски коммуникации.\n"
             "Клиент твой текст НЕ видит, это служебная аналитика.\n\n"
@@ -194,6 +233,7 @@ class SupportService:
         r1_sales: str,
     ) -> str | None:
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — тот же ИИ-юрист по банкротству, но на втором раунде обсуждения.\n"
             "Сейчас нужно перепроверить и уточнить своё мнение R1 с учётом коллег.\n\n"
             f"***КОНТЕКСТ:*** {client_context}\n"
@@ -220,6 +260,7 @@ class SupportService:
         r2_lawyer: str,
     ) -> str | None:
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — ИИ-менеджер сопровождения «Экспресс-Банкрот» на втором раунде.\n"
             "Сейчас нужно собрать из всех мнений то, что реально нужно сказать клиенту.\n\n"
             f"***КОНТЕКСТ:*** {client_context}\n"
@@ -251,6 +292,7 @@ class SupportService:
         r2_manager: str,
     ) -> str | None:
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — ИИ-куратор процесса и рисков «Экспресс-Банкрот» на втором раунде.\n"
             "Задача: посмотреть на ситуацию глазами операционного и репутационного риска.\n\n"
             f"***КОНТЕКСТ:*** {client_context}\n"
@@ -315,6 +357,7 @@ class SupportService:
             )
 
         system = (
+            f"{COMPANY_FACTS}\n\n"
             "Ты — финальный ИИ-менеджер сопровождения клиентов компании «Экспресс-Банкрот».\n"
             "Клиент видит ТОЛЬКО твой ответ. Всё, что написали другие агенты, — это внутренняя дискуссия.\n\n"
             "ТЕБЕ ПЕРЕДАНО:\n"
@@ -327,9 +370,10 @@ class SupportService:
             "---\n\n"
             "1) ФОРМАТ ОТВЕТА (СТРОГО JSON!)\n\n"
             "Ты ВСЕГДА отвечаешь строго в формате JSON без любого текста до или после, без ```json и т.п.:\n\n"
-            '{"answer": "здесь твой ответ клиенту БЕЗ СМАЙЛИКОВ", "switcher": "true" или "false"}\n\n'
-            'Если "switcher": "true", то ОБЯЗАТЕЛЬНО:\n\n'
-            '{"answer": "Подождите несколько минут, мне нужно уточнить", "switcher": "true"}\n\n'
+            '{"answer": "здесь твой ответ клиенту БЕЗ СМАЙЛИКОВ", "switcher": "true" или "false", "escalation_type": "none" или "conflict" или "request"}\n\n'
+            'Если "switcher": "true" — выбери escalation_type:\n'
+            '- "conflict" — при агрессии, угрозах, требовании вернуть деньги → answer: "Понимаю вашу озабоченность. Я передаю ваш запрос специалисту — он свяжется с вами в ближайшее время."\n'
+            '- "request" — при просьбе связаться, вопросе про оплату/договор → answer: "Этот вопрос требует участия специалиста — я передала запрос, вам скоро ответят."\n\n'
             "---\n\n"
             "2) ЛОГИКА SWITCHER\n\n"
             "switcher=\"false\" (отвечаем сами) если вопрос касается: долгов, кредитов, МФО, статуса дела, "
@@ -390,21 +434,29 @@ class SupportService:
         inn: str,
         question: str,
         contact_name: str,
+        deal_profile: str = "",
     ) -> str:
         history = await self._supabase.get_chat_history(chat_id)
-        client_context = await self._supabase.search_client_by_inn(inn)
+        judicial_docs = await self._supabase.search_client_by_inn(inn)
 
-        r1_lawyer = await self._r1_lawyer(client_context, question)
+        if deal_profile:
+            client_context = f"{deal_profile}\n\n{judicial_docs}"
+        else:
+            client_context = judicial_docs
+
+        # r1_lawyer and r1_sales are independent — run in parallel
+        r1_lawyer, r1_sales = await asyncio.gather(
+            self._r1_lawyer(client_context, question, history),
+            self._r1_sales(client_context, question),
+        )
         if r1_lawyer is None:
             raise RuntimeError("r1_lawyer returned None")
-
-        r1_manager = await self._r1_manager(client_context, question, r1_lawyer)
-        if r1_manager is None:
-            raise RuntimeError("r1_manager returned None")
-
-        r1_sales = await self._r1_sales(client_context, question)
         if r1_sales is None:
             raise RuntimeError("r1_sales returned None")
+
+        r1_manager = await self._r1_manager(client_context, question, r1_lawyer, history)
+        if r1_manager is None:
+            raise RuntimeError("r1_manager returned None")
 
         r2_lawyer = await self._r2_lawyer(client_context, question, r1_lawyer, r1_manager, r1_sales)
         if r2_lawyer is None:

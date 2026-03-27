@@ -38,6 +38,20 @@ Telegram-бот «Алина» реализован и задеплоен на V
 
 ## Следующие шаги
 
+### Активный спринт: S03 — Улучшение качества ответов ИИ
+
+| ID | Задача | Статус |
+|----|--------|--------|
+| [T10](docs/3.%20SUP-tasks/Done/S03_ai_chat_quality_done/T10_s03_company_facts_done.md) | COMPANY_FACTS — база знаний компании, анти-галлюцинация | ✅ 2026-03-27 |
+| [T11](docs/3.%20SUP-tasks/T11_s03_bitrix_deal_profile.md) | get_deal_profile() + client_context | 🟡 To Do |
+| [T12](docs/3.%20SUP-tasks/T12_s03_history_and_escalation_message.md) | История чата в агентах, улучшение эскалации | 🟡 To Do |
+| [T13](docs/3.%20SUP-tasks/T13_s03_evaluator_quality_run.md) | EvaluatorService + quality_run.py | 🔵 Planned |
+| [T14](docs/3.%20SUP-tasks/T14_s03_imconnector_service.md) | ImConnectorService — Bitrix Open Lines | 🔵 Planned |
+| [T15](docs/3.%20SUP-tasks/T15_s03_webhook_server.md) | Webhook-эндпоинт для ответов оператора | 🔵 Planned |
+| [T16](docs/3.%20SUP-tasks/T16_s03_escalation_state_machine.md) | Стейт-машина эскалации | 🔵 Planned |
+
+---
+
 ### Приоритет 0: S01 — Завершение авторизации
 
 T01–T05 независимы, T06 зависит от всех.

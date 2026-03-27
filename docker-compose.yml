@@ -4,5 +4,8 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      - NO_PROXY=api.telegram.org,api.openai.com,supabase.co
+      - no_proxy=api.telegram.org,api.openai.com,supabase.co
     extra_hosts:
       - "bitrix.express-bankrot.ru:213.189.219.20"

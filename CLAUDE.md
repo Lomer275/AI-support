@@ -44,7 +44,14 @@ Session state is persisted in **Supabase** table `bot_sessions` (keyed by `chat_
 
 ### Service Wiring
 
-All three services (`SupabaseService`, `BitrixService`, `OpenAIService`) share a **single** `aiohttp.ClientSession` created in `bot.py` and closed on shutdown. They are injected into handlers via `dp["supabase"]`, `dp["bitrix"]`, `dp["openai_svc"]`. The middleware also re-injects `supabase` directly into `data`.
+All services share a **single** `aiohttp.ClientSession` created in `bot.py` and closed on shutdown. Five services are initialized:
+- `SupabaseService` → `dp["supabase"]` — session state
+- `BitrixService` → `dp["bitrix"]` — CRM lookup
+- `OpenAIService` → `dp["openai_svc"]` — pre-auth prompts
+- `SupportSupabaseService` → `dp["support_supabase"]` — documents + chat history (separate Supabase project)
+- `SupportService` → `dp["support_svc"]` — multi-agent pipeline for authorized chat
+
+The middleware re-injects `supabase` directly into `data`.
 
 ### Contact Handler (phone verification)
 
@@ -84,14 +91,35 @@ Search filters: `CATEGORY_ID=4`, `STAGE_SEMANTIC_ID=P` (active/in-progress deals
 
 ### OpenAI Integration
 
-`services/openai_client.py` contains 5 prompts for different bot states:
-- `no_inn_in_text` — INN validation errors (includes digit count context)
-- `inn_not_found` — INN not in Bitrix
-- `waiting_for_phone` — phone verification guidance
-- `phone_mismatch` — phone mismatch
-- `chat_as_alina` — authorized chat (main "Alina" persona)
+`services/openai_client.py` handles pre-authorization states with 5 methods:
+- `no_inn_in_text(user_text, digit_count, escalate)` — invalid INN format
+- `inn_not_found(escalate)` — INN not in Bitrix
+- `waiting_for_phone(user_text)` — phone verification guidance
+- `phone_mismatch()` — always includes @Lobster_21
+- `chat_as_alina(user_text, contact_name)` — fallback-only for authorized state
 
-All prompts enforce first-person Russian speech as "Alina". The model is configurable via `OPENAI_MODEL` env var (default: `gpt-4o-mini`). Every handler has a hardcoded fallback string used when the OpenAI call returns `None`.
+All prompts enforce first-person Russian speech as "Alina". Uses `OPENAI_MODEL` (default: `gpt-4o-mini`). Returns `str | None` — every handler has a hardcoded fallback string for `None`.
+
+### Multi-Agent Support Pipeline (S02)
+
+Authorized chat uses `SupportService` (`services/support.py`) instead of a single prompt. The pipeline:
+
+```
+R1 round: _r1_lawyer + _r1_sales (parallel) → _r1_manager (sequential)
+R2 round: _r2_lawyer → _r2_manager → _r2_sales (sequential, uses R1 output)
+Coordinator: combines full discussion → JSON {"answer": "...", "switcher": "true"|"false"}
+```
+
+- **Models:** support agents use `OPENAI_MODEL_SUPPORT` (default: `gpt-4o-mini`); coordinator uses `OPENAI_MODEL_COORDINATOR` (default: `gpt-4o`)
+- **Context:** loads last 10 messages from `chat_history` + client documents from support Supabase
+- **Entry point:** `support_svc.answer(chat_id, inn, question, contact_name)` — saves Q+A to `chat_history`, returns answer string
+- **`switcher` field:** currently a stub (always ignored); future use for operator escalation
+- **Fallback chain:** `SupportService` exception → `openai_svc.chat_as_alina()` → hardcoded `FALLBACK_ALINA`
+
+`SupportSupabaseService` (`services/supabase_support.py`) connects to a **separate** Supabase project:
+- `search_client_by_inn(inn)` — RPC to fetch judicial documents, returns formatted string
+- `get_chat_history(chat_id, limit=10)` — fetches from `chat_history` table
+- `save_chat_message(chat_id, role, content)` — persists messages (role: `"user"` | `"assistant"`)
 
 ### Menu Sections
 
@@ -106,13 +134,17 @@ The 4 main menu buttons (`menu_chat`, `menu_payment`, `menu_tasks`, `menu_docs`)
 ## Environment Variables (`.env`)
 
 ```
-BOT_TOKEN=           # Telegram bot token
-SUPABASE_URL=        # Supabase project URL
-SUPABASE_ANON_KEY=   # Supabase anon key
-BITRIX_WEBHOOK_BASE= # Bitrix24 webhook base URL (no trailing slash)
-OPENAI_API_KEY=      # OpenAI API key
-OPENAI_MODEL=        # e.g. gpt-4o-mini
-OPENAI_PROXY=        # Optional: HTTP/SOCKS5 proxy URL for OpenAI calls
+BOT_TOKEN=                  # Telegram bot token
+SUPABASE_URL=               # Main Supabase project URL (bot_sessions table)
+SUPABASE_ANON_KEY=          # Main Supabase anon key
+SUPABASE_SUPPORT_URL=       # Support Supabase project URL (chat_history + documents)
+SUPABASE_SUPPORT_ANON_KEY=  # Support Supabase anon key
+BITRIX_WEBHOOK_BASE=        # Bitrix24 webhook base URL (no trailing slash)
+OPENAI_API_KEY=             # OpenAI API key
+OPENAI_MODEL=               # Pre-auth prompts model (default: gpt-4o-mini)
+OPENAI_MODEL_SUPPORT=       # Support agents model (default: gpt-4o-mini)
+OPENAI_MODEL_COORDINATOR=   # Coordinator agent model (default: gpt-4o)
+OPENAI_PROXY=               # Optional: HTTP/SOCKS5 proxy URL for OpenAI calls
 ```
 
 ## Deployment Note
@@ -124,16 +156,18 @@ Before deploying, deactivate the corresponding n8n workflow on `n8n.arbitra.onli
 ```
 docs/
 ├── 1. SUP-business requirements/   # BR01_ai_manager_bfl.md — product vision, JTBD, roadmap
-├── 2. SUP-specifications/          # Technical specs (S01 usability test cycle)
-├── 3. SUP-tasks/                   # Task files (T01, T02…) with acceptance criteria
+├── 2. SUP-specifications/          # S01 (authorization), S02 (multi-agent chat)
+├── 3. SUP-tasks/Done/              # Completed task files T01–T09 with acceptance criteria
 ├── 4. SUP-guides/                  # Internal conventions, templates, versioning guides
-└── 5. SUP-unsorted/                # ТЗ.md (original technical spec), questions.md (92 typical client questions), PDFs
+└── 5. SUP-unsorted/                # ТЗ.md (original TZ), questions.md (92 typical client questions), agent prompts
 ```
+
+Root-level docs: `SUP-architecture.md` (system design), `SUP-HANDOFF.md` (current status + priorities), `CHANGELOG.md`, `SUP-CHANGELOG.md`.
 
 ## Planned Features (from BR01)
 
-Current MVP covers: authorization (INN + phone) and AI chat. Upcoming stages:
-- **Stage 2:** Client profiling survey + document collection (read checklist from Bitrix, accept files → upload to Bitrix folder `UF_FOLDER_ID`)
-- **Stage 3:** Proactive notifications (scheduled outreach, court events from Bitrix)
-- **Stage 4:** Operator escalation (conflict/attrition signals → queue with context handoff)
-- **Stage 5:** Tasks and payment sections (currently stubs)
+Implemented: authorization (S01) and multi-agent AI chat (S02). Upcoming:
+- **Stage 3:** Document collection — read checklist from Bitrix, accept files → upload to Bitrix folder `UF_FOLDER_ID`
+- **Stage 4:** Proactive notifications (scheduled outreach, court events from Bitrix)
+- **Stage 5:** Operator escalation — `switcher=true` in coordinator output → queue with context handoff
+- **Stage 6:** Tasks and payment sections (currently stubs in `menu_tasks`, `menu_payment`)

@@ -4,7 +4,7 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
-from keyboards import main_menu_keyboard, remove_keyboard
+from keyboards import remove_keyboard
 from services.supabase import SupabaseService
 from states import SessionState
 
@@ -20,8 +20,7 @@ async def cmd_start(message: Message, session: dict, supabase: SupabaseService, 
     if session.get("state") == SessionState.AUTHORIZED:
         name = session.get("contact_name") or first_name or "вы"
         await message.answer(
-            f"✅ {name}, вы уже авторизованы. Чем могу помочь?",
-            reply_markup=main_menu_keyboard(),
+            f"✅ {name}, вы уже авторизованы. Задайте любой вопрос по вашему делу — я отвечу.",
         )
         return
 

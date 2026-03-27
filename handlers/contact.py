@@ -1,9 +1,10 @@
+import json
 import logging
 
 from aiogram import F, Router
 from aiogram.types import Message
 
-from keyboards import main_menu_keyboard, remove_keyboard
+from keyboards import remove_keyboard
 from services.bitrix import BitrixService
 from services.openai_client import OpenAIService
 from services.supabase import SupabaseService
@@ -30,11 +31,12 @@ async def handle_contact(
     if state != SessionState.WAITING_PHONE:
         return
 
-    # Normalize phones
+    # Normalize phones — all bitrix phones stored in context_data JSON
     tg_phone = normalize_phone(message.contact.phone_number or "")
-    bitrix_phone = normalize_phone(session.get("bitrix_phone") or "")
+    context = json.loads(session.get("context_data") or "{}")
+    bitrix_phones = [normalize_phone(p) for p in context.get("bitrix_phones", []) if p]
 
-    if tg_phone and bitrix_phone and tg_phone == bitrix_phone:
+    if tg_phone and bitrix_phones and tg_phone in bitrix_phones:
         # ── Phone matched: authorize ──
         deal_id = session.get("deal_id", "")
         contact_name = session.get("contact_name", "Клиент")
@@ -48,21 +50,13 @@ async def handle_contact(
             contact_name=contact_name,
         )
 
-        # Message 1: welcome to personal cabinet
         welcome = (
             f"\U0001f389 <b>{contact_name}</b>, добро пожаловать в личный кабинет!\n\n"
-            "Я — Алина, ваш персональный менеджер, и теперь у нас с вами "
-            "есть всё необходимое для работы по делу.\n\n"
-            "Вот что я могу для вас сделать:\n"
-            "\U0001f4ac <b>Чат со мной</b> — задавайте любые вопросы по делу, я отвечу\n"
-            "\U0001f4b0 <b>Оплата</b> — внесите платёж по договору или судебные расходы\n"
-            "\U0001f4cb <b>Мои задачи</b> — ваш список дел с дедлайнами от команды\n"
-            "\U0001f4c4 <b>Документы</b> — загружайте файлы, я передам их в работу"
+            "Я — Алина, ваш персональный менеджер по сопровождению "
+            "процедуры банкротства в компании ArbitrA.\n\n"
+            "Здесь вы можете задавать любые вопросы по вашему делу — я отвечу."
         )
         await message.answer(welcome, reply_markup=remove_keyboard)
-
-        # Message 2: menu buttons
-        await message.answer("Выберите раздел:", reply_markup=main_menu_keyboard())
 
     else:
         # ── Phone mismatch ──
