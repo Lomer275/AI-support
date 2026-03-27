@@ -5,7 +5,7 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
-_OAUTH_URL = "https://oauth.bitrix24.tech/oauth/token/"
+_OAUTH_URL = "https://bitrix.express-bankrot.ru/oauth/token/"
 
 
 class ImConnectorService:
