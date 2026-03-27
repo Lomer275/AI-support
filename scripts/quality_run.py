@@ -184,7 +184,7 @@ async def run(limit: int, output_path: pathlib.Path, inn: str) -> None:
             "contact_name": contact_name,
         }
         if valid_scores:
-            for key in ("specificity", "accuracy", "tone", "completeness", "total"):
+            for key in ("specificity", "accuracy", "tone", "completeness", "actionability", "legal_safety", "total"):
                 vals = [s[key] for s in valid_scores if key in s]
                 if vals:
                     summary[f"avg_{key}"] = round(sum(vals) / len(vals), 2)
@@ -199,7 +199,7 @@ async def run(limit: int, output_path: pathlib.Path, inn: str) -> None:
         print("\n=== Quality Run Summary ===")
         print(f"Client: {contact_name} (inn={resolved_inn or 'anonymous'})")
         print(f"Questions evaluated: {summary['evaluated']} / {summary['total_questions']}")
-        for key in ("specificity", "accuracy", "tone", "completeness", "total"):
+        for key in ("specificity", "accuracy", "tone", "completeness", "actionability", "legal_safety", "total"):
             avg_key = f"avg_{key}"
             if avg_key in summary:
                 print(f"  {key}: {summary[avg_key]:.2f} / 5")
