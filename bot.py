@@ -108,7 +108,7 @@ async def main():
                 timed_out = await supabase.get_escalated_sessions(timeout_minutes=60)
                 for row in timed_out:
                     chat_id = int(row["chat_id"])
-                    await supabase.update_session(chat_id, escalated=False)
+                    await supabase.update_session(chat_id, escalated=False, operator_last_reply_at=None)
                     try:
                         await bot.send_message(
                             chat_id,
@@ -120,12 +120,13 @@ async def main():
             except Exception:
                 logger.exception("Escalation watchdog iteration failed")
 
-    asyncio.create_task(escalation_watchdog())
+    wd_task = asyncio.create_task(escalation_watchdog())
 
     logger.info("Bot starting...")
     try:
         await dp.start_polling(bot)
     finally:
+        wd_task.cancel()
         await runner.cleanup()
         await http_session.close()
         await bot.session.close()

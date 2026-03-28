@@ -192,7 +192,7 @@ async def _handle_authorized(
     if switcher == "true":
         # Best-effort: get history for context via support_svc internal supabase
         try:
-            history = await support_svc._supabase.get_chat_history(chat_id)
+            history = await support_svc.get_chat_history(chat_id)
         except Exception:
             history = []
 
@@ -201,6 +201,7 @@ async def _handle_authorized(
             chat_id,
             escalated=True,
             escalated_at=moscow_now(),
+            bitrix_chat_id=str(chat_id),
         )
         logger.info(
             "Session escalated for chat_id=%s escalation_type=%s", chat_id, escalation_type

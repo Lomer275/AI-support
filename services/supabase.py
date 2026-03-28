@@ -61,11 +61,22 @@ class SupabaseService:
         Used by the watchdog to auto-return clients to AI after operator inactivity.
         """
         from datetime import datetime, timezone, timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)).isoformat()
+        # moscow_now() stores timestamps as Moscow-time strings without TZ offset.
+        # Compute cutoff in the same "naive Moscow" format so the comparison is consistent.
+        now_msk = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=3)
+        cutoff = (now_msk - timedelta(minutes=timeout_minutes)).strftime("%Y-%m-%dT%H:%M:%S")
+        # Return sessions timed out relative to last operator activity.
+        # Use COALESCE logic via PostgREST OR:
+        #   operator replied and last reply is old  →  operator_last_reply_at < cutoff
+        #   operator never replied  →  operator_last_reply_at IS NULL AND escalated_at < cutoff
+        or_filter = (
+            f"or=(operator_last_reply_at.lt.{cutoff},"
+            f"and(operator_last_reply_at.is.null,escalated_at.lt.{cutoff}))"
+        )
         url = (
             f"{self._base}/bot_sessions"
             f"?escalated=eq.true"
-            f"&escalated_at=lt.{cutoff}"
+            f"&{or_filter}"
             f"&select=chat_id,contact_name"
         )
         try:

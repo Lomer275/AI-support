@@ -475,6 +475,10 @@ class SupportService:
             return {"answer": None, "switcher": "false"}
 
     # ------------------------------------------------------------------
+    async def get_chat_history(self, chat_id: int) -> list:
+        """Public proxy to fetch chat history for external callers."""
+        return await self._supabase.get_chat_history(chat_id)
+
     # Public entry point
     # ------------------------------------------------------------------
 

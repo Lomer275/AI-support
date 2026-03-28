@@ -125,8 +125,8 @@ async def _handle_session_finish(
         logger.warning("SESSION.FINISH: invalid chat_id=%s", raw_chat_id)
         return
 
-    # Reset escalation flag (field added in T16; update_session is a no-op if absent)
-    await supabase.update_session(chat_id, escalated=False)
+    # Reset escalation fields (added in T16; update_session is a no-op if absent)
+    await supabase.update_session(chat_id, escalated=False, operator_last_reply_at=None)
 
     try:
         await bot.send_message(
