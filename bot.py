@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 import aiohttp
 from aiogram import Bot, Dispatcher
@@ -19,6 +20,7 @@ from services.support import SupportService
 from services.evaluator import EvaluatorService
 from services.imconnector import ImConnectorService
 from webhook_server import create_webhook_app
+from services.document_validator import DocumentValidator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,6 +90,17 @@ async def main():
     # Register handlers
     register_all_handlers(dp)
 
+    # Document validator (T20)
+    document_validator = DocumentValidator(
+        http_session=http_session,
+        openai_api_key=settings.openai_api_key,
+        cases_url=settings.supabase_cases_url,
+        cases_key=settings.supabase_cases_anon_key,
+        bitrix_base=settings.bitrix_webhook_base,
+        model=os.getenv("OPENAI_MODEL_VALIDATOR", "gpt-4o-mini"),
+        openai_proxy=settings.openai_proxy,
+    )
+
     # Webhook server (Bitrix operator replies + CRM deal updates)
     webhook_app = create_webhook_app(
         bot=bot,
@@ -96,6 +109,7 @@ async def main():
         bitrix_base=settings.bitrix_webhook_base,
         cases_url=settings.supabase_cases_url,
         cases_key=settings.supabase_cases_anon_key,
+        document_validator=document_validator,
     )
     runner = web.AppRunner(webhook_app)
     await runner.setup()

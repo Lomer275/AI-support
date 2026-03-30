@@ -219,6 +219,11 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
             comment = (deal.get("COMMENTS") or "").strip()
             if comment:
                 await insert_communication(http_session, inn, deal_id, comment, cases_url, cases_key)
+            # Check for new documents in deal folder (async, non-blocking)
+            validator = request.app.get("document_validator")
+            if validator and deal.get("UF_CRM_1601916846"):  # folder_url present
+                import asyncio
+                asyncio.create_task(validator.process_deal_files(inn, deal_id))
         else:
             logger.error("[WEBHOOK] Supabase upsert failed for deal_id=%s: %s", deal_id, err)
 
@@ -268,6 +273,7 @@ def create_webhook_app(
     bitrix_base: str,
     cases_url: str,
     cases_key: str,
+    document_validator=None,
 ) -> web.Application:
     app = web.Application()
     app["bot"] = bot
@@ -276,6 +282,7 @@ def create_webhook_app(
     app["bitrix_base"] = bitrix_base
     app["cases_url"] = cases_url
     app["cases_key"] = cases_key
+    app["document_validator"] = document_validator
     app.router.add_post("/webhook/bitrix/", handle_bitrix_webhook)
     app.router.add_post("/bitrix/crm-deal-update", _handle_crm_deal_update)
     return app
