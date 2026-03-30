@@ -254,33 +254,33 @@ bitrix_id       TEXT    -- для дедупликации
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T17 | Создать Supabase-проект `electronic_case` + все таблицы + индексы | — | 🔵 Planned |
+| T17 | [Создать Supabase-проект `electronic_case` + все таблицы + индексы](../3.%20SUP-tasks/T17_s04_create_database.md) | — | 🔵 Planned |
 
 ### Phase 2 — Начальная синхронизация
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T18 | `scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 сделок | T17 | 🔵 Planned |
+| T18 | [`scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 сделок](../3.%20SUP-tasks/T18_s04_initial_sync.md) | T17 | 🔵 Planned |
 
 ### Phase 3 — Вебхуки
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T19 | Расширить `webhook_server.py`: `onCrmDealUpdate` → обновление `electronic_case` | T17 | 🔵 Planned |
+| T19 | [Расширить `webhook_server.py`: `onCrmDealUpdate` → обновление `electronic_case`](../3.%20SUP-tasks/T19_s04_webhooks_sync.md) | T17 | 🔵 Planned |
 
 ### Phase 4 — Модуль проверки документов
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T20 | `services/document_validator.py`: фильтр → GPT-4o-mini Vision → чеклист | T17 | 🔵 Planned |
-| T21 | Уведомление клиенту в Telegram при `rejected` документе | T20 | 🔵 Planned |
+| T20 | [`services/document_validator.py`: фильтр → GPT-4o-mini Vision → чеклист](../3.%20SUP-tasks/T20_s04_document_validator.md) | T17, T19 | 🔵 Planned |
+| T21 | [Уведомление клиенту в Telegram при `rejected` документе](../3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | T20 | 🔵 Planned |
 
 ### Phase 5 — Сервис и интеграция
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T22 | `services/electronic_case.py`: `get_case_context()`, `get_checklist_status()` | T17 | 🔵 Planned |
-| T23 | Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` в чате | T22 | 🔵 Planned |
+| T22 | [`services/electronic_case.py`: `get_case_context()`, `get_checklist_status()`](../3.%20SUP-tasks/T22_s04_electronic_case_service.md) | T17, T18 | 🔵 Planned |
+| T23 | [Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` в чате](../3.%20SUP-tasks/T23_s04_agents_integration.md) | T22 | 🔵 Planned |
 
 ---
 
@@ -300,8 +300,8 @@ bitrix_id       TEXT    -- для дедупликации
 - [ ] Дублирующие вебхуки не создают дублей в БД
 
 ### Phase 4
-- [ ] `verified` документ копируется в Supabase Storage
-- [ ] `rejected` документ не копируется, клиент получает Telegram-сообщение с причиной
+- [ ] `verified` документ получает статус в БД, метаданные сохранены
+- [ ] `rejected` документ не сохраняется, клиент получает Telegram-сообщение с причиной
 - [ ] `checklist_completion` пересчитывается после каждой проверки
 
 ### Phase 5
