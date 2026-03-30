@@ -226,7 +226,14 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
                         deal_id, "set" if validator else "None", repr(folder_url))
             if validator and folder_url:
                 import asyncio
-                asyncio.create_task(validator.process_deal_files(inn, deal_id))
+
+                async def _run_validator():
+                    try:
+                        await validator.process_deal_files(inn, deal_id)
+                    except Exception:
+                        logger.exception("[VALIDATOR] task failed for deal_id=%s", deal_id)
+
+                asyncio.create_task(_run_validator())
         else:
             logger.error("[WEBHOOK] Supabase upsert failed for deal_id=%s: %s", deal_id, err)
 
