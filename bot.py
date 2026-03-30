@@ -88,8 +88,15 @@ async def main():
     # Register handlers
     register_all_handlers(dp)
 
-    # Webhook server (Bitrix operator replies)
-    webhook_app = create_webhook_app(bot, supabase)
+    # Webhook server (Bitrix operator replies + CRM deal updates)
+    webhook_app = create_webhook_app(
+        bot=bot,
+        supabase=supabase,
+        http_session=http_session,
+        bitrix_base=settings.bitrix_webhook_base,
+        cases_url=settings.supabase_cases_url,
+        cases_key=settings.supabase_cases_anon_key,
+    )
     runner = web.AppRunner(webhook_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", settings.webhook_port)

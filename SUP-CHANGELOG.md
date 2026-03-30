@@ -3,6 +3,9 @@
 ## [Не выпущено]
 
 ### Added
+- S04/T18: `scripts/sync_bitrix_to_cases.py` — разовая выгрузка 996/998 активных сделок из Bitrix → Supabase `electronic_case`; 992 строки в `cases`, enum-декодирование city/court_region, upsert по `inn`, 2 сделки пропущено (нет ИНН) (принято 2026-03-30)
+- S04/T17: Supabase-проект `electronic_case` — 6 таблиц (`cases`, `property`, `debts`, `payments`, `documents`, `communications`), 6 индексов, переменные `SUPABASE_CASES_URL` и `SUPABASE_CASES_ANON_KEY` добавлены в `.env` (принято 2026-03-30)
+- S03/T16: стейт-машина эскалации — маршрутизация сообщений клиента оператору при `escalated=true`, watchdog каждые 5 минут возвращает ИИ через 1 час без ответа оператора, `operator_last_reply_at` сбрасывается при SESSION.FINISH и watchdog-сбросе (принято 2026-03-27)
 - S03/T11: `get_deal_profile(deal_id)` в `BitrixService` переключён на чтение чеклиста из задачи «Собрать ЛИЧНЫЕ документы клиента» через 2 batch-запроса (deal+tasks.task.list → user+tasks.task.get с CHECKLIST); формат вывода: стадия, менеджер, чеклист со статусами (принято 2026-03-27)
 - S03/T15: `webhook_server.py` — aiohttp-сервер на порту 8080 для приёма ответов оператора из Bitrix Open Lines; очистка BB-кодов; события `ONIMCONNECTORMESSAGEADD` и `IMOPENLINES.SESSION.FINISH`; доставка подтверждена через Telegram MCP за 0.18s (принято 2026-03-27)
 - S03/T14: `ImConnectorService` — отправка сообщений и истории диалога в Bitrix Open Lines через OAuth (`imconnector.send.messages`); автообновление access_token через refresh_token при истечении; `connector_id=tg_alina_support`, `openline_id=56` (принято 2026-03-27)

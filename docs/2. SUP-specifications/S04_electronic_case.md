@@ -21,12 +21,12 @@
 
 ### Входит:
 
-**Phase 1 — База данных и схема:** 🔵 Planned
-- [ ] Создать новый Supabase-проект `electronic_case` (T17)
-- [ ] Создать таблицы: `cases`, `property`, `debts`, `payments`, `documents`, `communications` (T17)
+**Phase 1 — База данных и схема:** ✅ Done
+- [x] Создать новый Supabase-проект `electronic_case` (T17)
+- [x] Создать таблицы: `cases`, `property`, `debts`, `payments`, `documents`, `communications` (T17)
 
-**Phase 2 — Начальная синхронизация (1 раз):** 🔵 Planned
-- [ ] Скрипт `scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 активных сделок из Bitrix → заполнение всех таблиц (T18)
+**Phase 2 — Начальная синхронизация (1 раз):** ✅ Done
+- [x] Скрипт `scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 активных сделок из Bitrix → заполнение всех таблиц (T18)
 
 **Phase 3 — Постоянная синхронизация (вебхуки):** 🔵 Planned
 - [ ] Расширить `webhook_server.py`: обработка `onCrmDealUpdate` → обновление `cases`, `documents`, `communications` (T19)
@@ -254,13 +254,13 @@ bitrix_id       TEXT    -- для дедупликации
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T17 | [Создать Supabase-проект `electronic_case` + все таблицы + индексы](../3.%20SUP-tasks/T17_s04_create_database.md) | — | 🔵 Planned |
+| T17 | [Создать Supabase-проект `electronic_case` + все таблицы + индексы](../3.%20SUP-tasks/Done/S04_electronic_case_done/T17_s04_create_database_done.md) | — | ✅ 2026-03-30 |
 
 ### Phase 2 — Начальная синхронизация
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T18 | [`scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 сделок](../3.%20SUP-tasks/T18_s04_initial_sync.md) | T17 | 🔵 Planned |
+| T18 | [`scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 сделок](../3.%20SUP-tasks/Done/S04_electronic_case_done/T18_s04_initial_sync_done.md) | T17 | ✅ 2026-03-30 |
 
 ### Phase 3 — Вебхуки
 

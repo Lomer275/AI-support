@@ -19,6 +19,9 @@ class Settings:
     supabase_support_anon_key: str
     openai_model_support: str
     openai_model_coordinator: str
+    # Electronic case Supabase
+    supabase_cases_url: str
+    supabase_cases_anon_key: str
     # ImConnector / Open Lines
     bitrix_url: str
     bitrix_openline_id: str
@@ -41,6 +44,8 @@ class Settings:
             openai_proxy=os.getenv("OPENAI_PROXY"),
             supabase_support_url=os.environ["SUPABASE_SUPPORT_URL"],
             supabase_support_anon_key=os.environ["SUPABASE_SUPPORT_ANON_KEY"],
+            supabase_cases_url=os.environ["SUPABASE_CASES_URL"],
+            supabase_cases_anon_key=os.environ["SUPABASE_CASES_ANON_KEY"],
             openai_model_support=os.getenv("OPENAI_MODEL_SUPPORT", "gpt-4o-mini"),
             openai_model_coordinator=os.getenv("OPENAI_MODEL_COORDINATOR", "gpt-4o"),
             bitrix_url=os.environ["BITRIX_URL"],

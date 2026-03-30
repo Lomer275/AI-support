@@ -1,11 +1,11 @@
-"""Aiohttp webhook server for Bitrix24 Open Lines operator replies.
+"""Aiohttp webhook server for Bitrix24 events.
 
-Bitrix sends application/x-www-form-urlencoded POST to /webhook/bitrix/
-when an operator writes a message or closes a session.
+Events handled on /webhook/bitrix/:
+- ONIMCONNECTORMESSAGEADD       — operator message → forward to Telegram
+- IMOPENLINES.SESSION.FINISH    — operator closed chat → notify client, reset escalation
 
-Events handled:
-- ONIMCONNECTORMESSAGEADD  — new message from operator → forward to Telegram
-- IMOPENLINES.SESSION.FINISH — operator closed chat → notify client, reset escalated flag
+Events handled on /bitrix/crm-deal-update:
+- ONCRMDEALUPDATE / ONCRMDEALADD — deal changed → upsert in electronic_case Supabase
 """
 import logging
 import re
@@ -57,17 +57,14 @@ def _parse_message(post: dict) -> dict:
 
 
 def _parse_session_finish(post: dict) -> str | None:
-    """Extract chat_id from IMOPENLINES.SESSION.FINISH payload.
-
-    Bitrix sends the Telegram chat_id in CONNECTOR_MID for this event.
-    """
+    """Extract chat_id from IMOPENLINES.SESSION.FINISH payload."""
     return (
         post.get("data[PARAMS][CONNECTOR_MID]")
         or post.get("data[MESSAGES][0][chat][id]")
     )
 
 
-# ── Event handlers ───────────────────────────────────────────────────────────
+# ── Open Lines event handlers ────────────────────────────────────────────────
 
 async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> None:
     """Forward operator message to Telegram client and update operator_last_reply_at."""
@@ -99,14 +96,10 @@ async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> No
             else:
                 await bot.send_document(chat_id, file_url)
         except Exception:
-            logger.warning(
-                "Failed to send file to chat_id=%s url=%s", chat_id, file_url
-            )
+            logger.warning("Failed to send file to chat_id=%s url=%s", chat_id, file_url)
 
-    # Track operator activity for watchdog timeout
     from utils import moscow_now
     await supabase.update_session(chat_id, operator_last_reply_at=moscow_now())
-
     logger.info("Operator message forwarded to chat_id=%s", chat_id)
 
 
@@ -125,7 +118,6 @@ async def _handle_session_finish(
         logger.warning("SESSION.FINISH: invalid chat_id=%s", raw_chat_id)
         return
 
-    # Reset escalation fields (added in T16; update_session is a no-op if absent)
     await supabase.update_session(chat_id, escalated=False, operator_last_reply_at=None)
 
     try:
@@ -139,13 +131,107 @@ async def _handle_session_finish(
     logger.info("Session finish handled for chat_id=%s", chat_id)
 
 
-# ── Request handler ──────────────────────────────────────────────────────────
+# ── CRM Deal Update handler ──────────────────────────────────────────────────
+
+async def _fetch_deal_with_contact(
+    http_session, bitrix_base: str, deal_id: str
+) -> tuple[dict | None, dict | None]:
+    """Fetch deal + contact in one batch using Bitrix result chaining.
+
+    Returns (deal, contact). contact may be None if CONTACT_ID is missing.
+    """
+    from services.cases_mapper import DEAL_SELECT
+
+    select_qs = "&".join(f"select[]={f}" for f in DEAL_SELECT)
+    contact_select = "select[]=ID&select[]=NAME&select[]=LAST_NAME&select[]=SECOND_NAME&select[]=PHONE"
+
+    batch_data = [
+        ("halt", "0"),
+        ("cmd[deal]", f"crm.deal.get?ID={deal_id}&{select_qs}"),
+        ("cmd[contact]", f"crm.contact.get?ID=$result[deal][CONTACT_ID]&{contact_select}"),
+    ]
+
+    try:
+        async with http_session.post(f"{bitrix_base}/batch", data=batch_data) as resp:
+            result = await resp.json(content_type=None)
+    except Exception:
+        logger.exception("[WEBHOOK] Bitrix batch request failed for deal_id=%s", deal_id)
+        return None, None
+
+    inner = result.get("result", {}).get("result", {})
+    deal = inner.get("deal")
+    contact = inner.get("contact")
+
+    if not deal or not deal.get("ID"):
+        logger.warning("[WEBHOOK] deal_id=%s not found in Bitrix response", deal_id)
+        return None, None
+
+    # contact may be {} or have an error if CONTACT_ID was missing — treat as None
+    if not contact or not contact.get("ID"):
+        contact = None
+
+    return deal, contact
+
+
+async def _handle_crm_deal_update(request: web.Request) -> web.Response:
+    """Handle ONCRMDEALUPDATE / ONCRMDEALADD from Bitrix.
+
+    Bitrix sends form-encoded body with:
+        event=ONCRMDEALUPDATE
+        data[FIELDS][ID]=<deal_id>
+    """
+    try:
+        post = dict(await request.post())
+    except Exception:
+        logger.exception("[WEBHOOK] Failed to parse CRM deal update body")
+        return web.Response(status=200, text="ok")
+
+    event = post.get("event", "")
+    deal_id = post.get("data[FIELDS][ID]")
+
+    if not deal_id:
+        logger.warning("[WEBHOOK] %s: no deal ID in payload", event)
+        return web.Response(status=200, text="ok")
+
+    logger.info("[WEBHOOK] %s deal_id=%s", event, deal_id)
+
+    http_session = request.app["http_session"]
+    bitrix_base = request.app["bitrix_base"]
+    cases_url = request.app["cases_url"]
+    cases_key = request.app["cases_key"]
+
+    try:
+        from services.cases_mapper import build_case_row, upsert_case, insert_communication
+
+        deal, contact = await _fetch_deal_with_contact(http_session, bitrix_base, deal_id)
+        if deal is None:
+            return web.Response(status=200, text="ok")
+
+        inn = (deal.get("UF_CRM_1751273997835") or "").strip()
+        if not inn:
+            logger.info("[WEBHOOK] deal_id=%s has no INN, skipping upsert", deal_id)
+            return web.Response(status=200, text="ok")
+
+        row = build_case_row(deal, contact)
+        ok, err = await upsert_case(http_session, row, cases_url, cases_key)
+        if ok:
+            logger.info("[WEBHOOK] deal_id=%s upserted (stage=%s)", deal_id, deal.get("STAGE_ID"))
+            comment = (deal.get("COMMENTS") or "").strip()
+            if comment:
+                await insert_communication(http_session, inn, deal_id, comment, cases_url, cases_key)
+        else:
+            logger.error("[WEBHOOK] Supabase upsert failed for deal_id=%s: %s", deal_id, err)
+
+    except Exception:
+        logger.exception("[WEBHOOK] Error processing deal_id=%s", deal_id)
+
+    return web.Response(status=200, text="ok")
+
+
+# ── Open Lines request handler ───────────────────────────────────────────────
 
 async def handle_bitrix_webhook(request: web.Request) -> web.Response:
-    """Entry point for all Bitrix Open Lines events.
-
-    Always returns 200 so Bitrix does not retry the request.
-    """
+    """Entry point for Bitrix Open Lines events. Always returns 200."""
     try:
         post = await request.post()
         post = dict(post)
@@ -175,9 +261,21 @@ async def handle_bitrix_webhook(request: web.Request) -> web.Response:
 
 # ── App factory ──────────────────────────────────────────────────────────────
 
-def create_webhook_app(bot: Bot, supabase: SupabaseService) -> web.Application:
+def create_webhook_app(
+    bot: Bot,
+    supabase: SupabaseService,
+    http_session,
+    bitrix_base: str,
+    cases_url: str,
+    cases_key: str,
+) -> web.Application:
     app = web.Application()
     app["bot"] = bot
     app["supabase"] = supabase
+    app["http_session"] = http_session
+    app["bitrix_base"] = bitrix_base
+    app["cases_url"] = cases_url
+    app["cases_key"] = cases_key
     app.router.add_post("/webhook/bitrix/", handle_bitrix_webhook)
+    app.router.add_post("/bitrix/crm-deal-update", _handle_crm_deal_update)
     return app

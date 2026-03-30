@@ -48,7 +48,7 @@ Telegram-бот «Алина» реализован и задеплоен на V
 | [T13](docs/3.%20SUP-tasks/Done/S03_ai_chat_quality_done/T13_s03_evaluator_quality_run_done.md) | EvaluatorService + quality_run.py | ✅ 2026-03-27 |
 | [T14](docs/3.%20SUP-tasks/Done/S03_ai_chat_quality_done/T14_s03_imconnector_service_done.md) | ImConnectorService — Bitrix Open Lines | ✅ 2026-03-27 |
 | [T15](docs/3.%20SUP-tasks/Done/S03_ai_chat_quality_done/T15_s03_webhook_server_done.md) | Webhook-эндпоинт для ответов оператора | ✅ 2026-03-27 |
-| [T16](docs/3.%20SUP-tasks/T16_s03_escalation_state_machine.md) | Стейт-машина эскалации | 🔵 Planned |
+| [T16](docs/3.%20SUP-tasks/Done/S03_ai_chat_quality_done/T16_s03_escalation_state_machine_done.md) | Стейт-машина эскалации | ✅ 2026-03-27 |
 
 ---
 
@@ -64,6 +64,20 @@ T01–T05 независимы, T06 зависит от всех.
 | [T04](docs/3.%20SUP-tasks/Done/S01_authorization_done/T04_s01_bitrix_unavailable_done.md) | Обработка недоступности Bitrix | ✅ 2026-03-20 |
 | [T05](docs/3.%20SUP-tasks/Done/S01_authorization_done/T05_s01_auth_consultative_mode_done.md) | Консультативный режим во время авторизации | ✅ 2026-03-20 |
 | [T06](docs/3.%20SUP-tasks/Done/S01_authorization_done/T06_s01_auth_autotests_done.md) | Автотесты авторизации через Telegram MCP | ✅ 2026-03-20 |
+
+### Активный спринт: S04 — Электронное дело клиента
+
+| ID | Задача | Статус |
+|----|--------|--------|
+| [T17](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T17_s04_create_database_done.md) | Создать Supabase-проект `electronic_case` + схему БД (6 таблиц) | ✅ 2026-03-30 |
+| [T18](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T18_s04_initial_sync_done.md) | Начальная синхронизация ~1000 сделок из Bitrix | ✅ 2026-03-30 |
+| [T19](docs/3.%20SUP-tasks/T19_s04_webhooks_sync.md) | Webhook-синхронизация `onCrmDealUpdate` → `electronic_case` | pending |
+| [T20](docs/3.%20SUP-tasks/T20_s04_document_validator.md) | `document_validator.py`: фильтр → GPT Vision → чеклист | pending |
+| [T21](docs/3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | Уведомление клиенту при отклонении документа | pending |
+| [T22](docs/3.%20SUP-tasks/T22_s04_electronic_case_service.md) | `electronic_case.py`: `get_case_context()`, `get_checklist_status()` | pending |
+| [T23](docs/3.%20SUP-tasks/T23_s04_agents_integration.md) | Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` | pending |
+
+---
 
 ### Приоритет 1: Сбор документов
 
