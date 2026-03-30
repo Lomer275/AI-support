@@ -221,7 +221,10 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
                 await insert_communication(http_session, inn, deal_id, comment, cases_url, cases_key)
             # Check for new documents in deal folder (async, non-blocking)
             validator = request.app.get("document_validator")
-            if validator and deal.get("UF_CRM_1601916846"):  # folder_url present
+            folder_url = deal.get("UF_CRM_1601916846")
+            logger.info("[WEBHOOK] deal_id=%s validator=%s folder_url=%s",
+                        deal_id, "set" if validator else "None", repr(folder_url))
+            if validator and folder_url:
                 import asyncio
                 asyncio.create_task(validator.process_deal_files(inn, deal_id))
         else:
