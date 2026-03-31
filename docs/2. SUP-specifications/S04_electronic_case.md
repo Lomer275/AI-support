@@ -28,15 +28,15 @@
 **Phase 2 — Начальная синхронизация (1 раз):** ✅ Done
 - [x] Скрипт `scripts/sync_bitrix_to_cases.py`: batch-выгрузка ~1000 активных сделок из Bitrix → заполнение всех таблиц (T18)
 
-**Phase 3 — Постоянная синхронизация (вебхуки):** 🔵 Planned
-- [ ] Расширить `webhook_server.py`: обработка `onCrmDealUpdate` → обновление `cases`, `documents`, `communications` (T19)
+**Phase 3 — Постоянная синхронизация (вебхуки):** ✅ Done
+- [x] Расширить `webhook_server.py`: обработка `onCrmDealUpdate` → обновление `cases`, `documents`, `communications` (T19)
 
-**Phase 4 — Модуль проверки документов:** 🔵 Planned
-- [ ] Создать `services/document_validator.py`: 3-уровневая проверка (фильтр → GPT-4o-mini Vision → полнота чеклиста) (T20)
+**Phase 4 — Модуль проверки документов:** 🔵 In Progress
+- [x] Создать `services/document_validator.py`: 3-уровневая проверка (фильтр → GPT-4o-mini Vision → полнота чеклиста) (T20)
 - [ ] Уведомление клиенту в Telegram при отклонении документа (T21)
 
-**Phase 5 — Сервис и интеграция с агентами:** 🔵 Planned
-- [ ] Создать `services/electronic_case.py`: `get_case_context()`, `get_checklist_status()` (T22)
+**Phase 5 — Сервис и интеграция с агентами:** 🔵 In Progress
+- [x] Создать `services/electronic_case.py`: `get_case_context()`, `get_checklist_status()` (T22)
 - [ ] Инжектировать контекст электронного дела во все R1/R2/Coordinator промпты, заменить `BitrixService.get_deal_profile()` в чате (T23)
 
 ### Не входит:
@@ -266,20 +266,20 @@ bitrix_id       TEXT    -- для дедупликации
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T19 | [Расширить `webhook_server.py`: `onCrmDealUpdate` → обновление `electronic_case`](../3.%20SUP-tasks/T19_s04_webhooks_sync.md) | T17 | 🔵 Planned |
+| T19 | [Расширить `webhook_server.py`: `onCrmDealUpdate` → обновление `electronic_case`](../3.%20SUP-tasks/Done/S04_electronic_case_done/T19_s04_webhooks_sync_done.md) | T17 | ✅ 2026-03-31 |
 
 ### Phase 4 — Модуль проверки документов
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T20 | [`services/document_validator.py`: фильтр → GPT-4o-mini Vision → чеклист](../3.%20SUP-tasks/T20_s04_document_validator.md) | T17, T19 | 🔵 Planned |
-| T21 | [Уведомление клиенту в Telegram при `rejected` документе](../3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | T20 | 🔵 Planned |
+| T20 | [`services/document_validator.py`: фильтр → GPT-4o-mini Vision → чеклист](../3.%20SUP-tasks/Done/S04_electronic_case_done/T20_s04_document_validator_done.md) | T17, T19 | ✅ 2026-03-31 |
+| T21 | [Уведомление клиенту в Telegram при `rejected` документе](../3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | T20 | ⏸ Отложено (нужна загрузка документов через Telegram) |
 
 ### Phase 5 — Сервис и интеграция
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| T22 | [`services/electronic_case.py`: `get_case_context()`, `get_checklist_status()`](../3.%20SUP-tasks/T22_s04_electronic_case_service.md) | T17, T18 | 🔵 Planned |
+| T22 | [`services/electronic_case.py`: `get_case_context()`, `get_checklist_status()`](../3.%20SUP-tasks/Done/S04_electronic_case_done/T22_s04_electronic_case_service_done.md) | T17, T18 | ✅ 2026-03-31 |
 | T23 | [Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` в чате](../3.%20SUP-tasks/T23_s04_agents_integration.md) | T22 | 🔵 Planned |
 
 ---

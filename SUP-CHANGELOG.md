@@ -3,6 +3,9 @@
 ## [Не выпущено]
 
 ### Added
+- S04/T22: `services/electronic_case.py` — `ElectronicCaseService` с `get_case_context()` и `get_checklist_status()`; форматированный контекст клиента из Supabase `electronic_case`; декодирование стадий через `STAGE_LABELS`; ✅/❌/⬜ чеклист документов; инициализирован в `bot.py`, доступен через `dp["electronic_case_svc"]` (принято 2026-03-31)
+- S04/T20: `services/document_validator.py` — GPT-4o-mini Vision классификация документов из папки `Неразобранное`; 18 типов чеклиста; `checklist_completion` пересчёт; поддержка PDF (PyMuPDF) и изображений (Pillow) (принято 2026-03-31)
+- S04/T19: webhook `ONCRMDEALUPDATE` → `/bitrix/crm-deal-update` → upsert в `electronic_case`; `services/cases_mapper.py` вынесен как общий модуль; вебхук зарегистрирован в Bitrix и протестирован (принято 2026-03-31)
 - S04/T18: `scripts/sync_bitrix_to_cases.py` — разовая выгрузка 996/998 активных сделок из Bitrix → Supabase `electronic_case`; 992 строки в `cases`, enum-декодирование city/court_region, upsert по `inn`, 2 сделки пропущено (нет ИНН) (принято 2026-03-30)
 - S04/T17: Supabase-проект `electronic_case` — 6 таблиц (`cases`, `property`, `debts`, `payments`, `documents`, `communications`), 6 индексов, переменные `SUPABASE_CASES_URL` и `SUPABASE_CASES_ANON_KEY` добавлены в `.env` (принято 2026-03-30)
 - S03/T16: стейт-машина эскалации — маршрутизация сообщений клиента оператору при `escalated=true`, watchdog каждые 5 минут возвращает ИИ через 1 час без ответа оператора, `operator_last_reply_at` сбрасывается при SESSION.FINISH и watchdog-сбросе (принято 2026-03-27)

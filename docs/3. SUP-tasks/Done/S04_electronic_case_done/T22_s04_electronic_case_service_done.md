@@ -2,6 +2,9 @@
 Статус: draft
 Спецификация: docs/2. SUP-specifications/S04_electronic_case.md
 
+**Статус:** ✅ Выполнено
+**Дата закрытия:** 2026-03-31
+
 # T22_s04_electronic_case_service — Сервис ElectronicCaseService
 
 ## Customer-facing инкремент

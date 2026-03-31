@@ -71,10 +71,10 @@ T01–T05 независимы, T06 зависит от всех.
 |----|--------|--------|
 | [T17](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T17_s04_create_database_done.md) | Создать Supabase-проект `electronic_case` + схему БД (6 таблиц) | ✅ 2026-03-30 |
 | [T18](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T18_s04_initial_sync_done.md) | Начальная синхронизация ~1000 сделок из Bitrix | ✅ 2026-03-30 |
-| [T19](docs/3.%20SUP-tasks/T19_s04_webhooks_sync.md) | Webhook-синхронизация `onCrmDealUpdate` → `electronic_case` | pending |
-| [T20](docs/3.%20SUP-tasks/T20_s04_document_validator.md) | `document_validator.py`: фильтр → GPT Vision → чеклист | pending |
-| [T21](docs/3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | Уведомление клиенту при отклонении документа | pending |
-| [T22](docs/3.%20SUP-tasks/T22_s04_electronic_case_service.md) | `electronic_case.py`: `get_case_context()`, `get_checklist_status()` | pending |
+| [T19](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T19_s04_webhooks_sync_done.md) | Webhook-синхронизация `onCrmDealUpdate` → `electronic_case` | ✅ 2026-03-31 |
+| [T20](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T20_s04_document_validator_done.md) | `document_validator.py`: фильтр → GPT Vision → чеклист | ✅ 2026-03-31 |
+| [T21](docs/3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | Уведомление клиенту при отклонении документа | ⏸ отложено |
+| [T22](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T22_s04_electronic_case_service_done.md) | `electronic_case.py`: `get_case_context()`, `get_checklist_status()` | ✅ 2026-03-31 |
 | [T23](docs/3.%20SUP-tasks/T23_s04_agents_integration.md) | Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` | pending |
 
 ---
