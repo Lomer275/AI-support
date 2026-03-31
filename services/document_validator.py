@@ -134,18 +134,55 @@ class DocumentValidator:
     # ── Bitrix Disk API ───────────────────────────────────────────────────────
 
     async def _get_root_folder_id(self, deal_id: str) -> str | None:
-        """Get root folder ID for a CRM deal via disk.storage.getforcrm."""
+        """Get client folder ID from shared disk by matching folder name from folder_url.
+
+        folder_url format: https://bitrix.../docs/shared/path/<encoded_name>
+        Client folders live in the root of shared disk (storage_id=11, root_folder_id=19).
+        We search by folder name using disk.folder.getchildren with filter.
+        """
+        # First get folder_url from cases table
+        try:
+            async with self._session.get(
+                f"{self._cases_url}/rest/v1/cases",
+                headers=self._supabase_headers(""),
+                params={"deal_id": f"eq.{deal_id}", "select": "folder_url"},
+            ) as resp:
+                rows = await resp.json(content_type=None)
+            if not rows or not rows[0].get("folder_url"):
+                return None
+            folder_url = rows[0]["folder_url"]
+        except Exception:
+            logger.warning("[VALIDATOR] failed to get folder_url for deal_id=%s", deal_id)
+            return None
+
+        # Extract folder name from URL: .../docs/shared/path/<name>
+        import urllib.parse
+        try:
+            path = urllib.parse.urlparse(folder_url).path  # /docs/shared/path/Аксенов...
+            folder_name = urllib.parse.unquote(path.split("/path/")[-1])
+        except Exception:
+            logger.warning("[VALIDATOR] cannot parse folder_url=%s", folder_url)
+            return None
+
+        if not folder_name:
+            return None
+
+        # Search in shared disk root (ID=19) by name
         try:
             async with self._session.post(
-                f"{self._bitrix_base}/disk.storage.getforcrm",
-                data={"ENTITY_TYPE": "CRM_DEAL", "ENTITY_ID": deal_id},
+                f"{self._bitrix_base}/disk.folder.getchildren",
+                data={"id": "19", "filter[NAME]": folder_name, "filter[TYPE]": "folder"},
             ) as resp:
                 data = await resp.json(content_type=None)
-            storage = data.get("result", {})
-            root = storage.get("ROOT_OBJECT", {})
-            return str(root["ID"]) if root.get("ID") else None
+            items = data.get("result", [])
+            if items:
+                folder_id = str(items[0]["ID"])
+                logger.info("[VALIDATOR] deal_id=%s folder '%s' → id=%s", deal_id, folder_name, folder_id)
+                return folder_id
+            logger.info("[VALIDATOR] deal_id=%s folder '%s' not found in shared disk", deal_id, folder_name)
+            return None
         except Exception:
-            logger.warning("[VALIDATOR] disk.storage.getforcrm failed for deal_id=%s", deal_id)
+            logger.warning("[VALIDATOR] disk.folder.getchildren search failed for deal_id=%s", deal_id)
             return None
 
     async def _list_folder_files(self, folder_id: str) -> list[dict]:
