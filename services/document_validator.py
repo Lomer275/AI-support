@@ -114,18 +114,17 @@ class DocumentValidator:
 
             if not new_files:
                 logger.debug("[VALIDATOR] deal_id=%s: no new files", deal_id)
-                return
+            else:
+                logger.info("[VALIDATOR] deal_id=%s: %d new file(s)", deal_id, len(new_files))
 
-            logger.info("[VALIDATOR] deal_id=%s: %d new file(s)", deal_id, len(new_files))
+                # Insert all new files as pending first
+                await self._insert_pending_files(inn, new_files)
 
-            # Insert all new files as pending first
-            await self._insert_pending_files(inn, new_files)
+                # Validate up to 10
+                for file in new_files[:10]:
+                    await self._validate_one(inn, file)
 
-            # Validate up to 10
-            for file in new_files[:10]:
-                await self._validate_one(inn, file)
-
-            # Recalculate checklist completion
+            # Always recalculate checklist completion (even if no new files)
             await self._update_checklist_completion(inn)
 
         except Exception:
