@@ -502,12 +502,19 @@ class SupportService:
         facts: dict[str, str] = {}
         facts["Имя"] = contact_name
 
-        # --- From deal_profile ---
+        # --- From case_context (electronic_case format or Bitrix fallback) ---
         for line in deal_profile.splitlines():
             if line.startswith("Стадия дела:"):
                 facts["Стадия"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Стадия:"):
+                # electronic_case format: "Стадия: Реструктуризация (с 2026-01-15)"
+                facts["Стадия"] = line.split(":", 1)[1].strip()
             elif line.startswith("Ответственный менеджер:"):
                 facts["Менеджер"] = line.split(":", 1)[1].strip()
+            elif line.startswith("Арбитражный управляющий:"):
+                val = line.split(":", 1)[1].strip()
+                if val and val != "[не заполнено в CRM]":
+                    facts["АУ"] = val
 
         # --- From judicial_docs ---
         # Court name

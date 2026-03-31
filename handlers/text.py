@@ -8,6 +8,7 @@ from aiogram.types import Message
 
 from keyboards import phone_share_keyboard
 from services.bitrix import BitrixService
+from services.electronic_case import ElectronicCaseService
 from services.imconnector import ImConnectorService
 from services.openai_client import OpenAIService
 from services.supabase import SupabaseService
@@ -41,6 +42,7 @@ async def handle_text(
     openai_svc: OpenAIService,
     support_svc: SupportService,
     imconnector_svc: ImConnectorService,
+    electronic_case_svc: ElectronicCaseService | None = None,
     **kwargs,
 ):
     state = session.get("state", "waiting_inn")
@@ -51,7 +53,7 @@ async def handle_text(
     elif state == SessionState.WAITING_PHONE:
         await _handle_waiting_phone(message, text, openai_svc)
     elif state == SessionState.AUTHORIZED:
-        await _handle_authorized(message, bot, text, session, supabase, bitrix, openai_svc, support_svc, imconnector_svc)
+        await _handle_authorized(message, bot, text, session, supabase, bitrix, openai_svc, support_svc, imconnector_svc, electronic_case_svc)
     else:
         # Unknown state — treat as waiting_inn
         await _handle_waiting_inn(message, text, session, supabase, bitrix, openai_svc)
@@ -132,6 +134,7 @@ async def _handle_authorized(
     openai_svc: OpenAIService,
     support_svc: SupportService,
     imconnector_svc: ImConnectorService,
+    electronic_case_svc: ElectronicCaseService | None = None,
 ):
     if not text.strip():
         await message.answer("Задайте любой вопрос по вашему делу — я отвечу.")
@@ -165,15 +168,24 @@ async def _handle_authorized(
     switcher = "false"
     escalation_type = "none"
     try:
-        deal_profile = ""
-        if deal_id:
+        case_context = ""
+        if electronic_case_svc and inn:
             try:
-                deal_profile = await bitrix.get_deal_profile(deal_id)
+                case_context = await electronic_case_svc.get_case_context(inn) or ""
+                if case_context:
+                    logger.info("[CONTEXT] source=electronic_case inn=%s", inn)
             except Exception:
-                logger.exception("get_deal_profile failed for deal_id=%s", deal_id)
+                logger.exception("[CONTEXT] electronic_case failed for inn=%s", inn)
+        if not case_context and deal_id:
+            try:
+                case_context = await bitrix.get_deal_profile(deal_id) or ""
+                if case_context:
+                    logger.warning("[CONTEXT] source=bitrix_fallback inn=%s deal_id=%s", inn, deal_id)
+            except Exception:
+                logger.exception("get_deal_profile fallback failed for deal_id=%s", deal_id)
 
         ai_text, switcher, escalation_type = await support_svc.answer(
-            chat_id, inn, text, contact_name, deal_profile
+            chat_id, inn, text, contact_name, case_context
         )
     except Exception:
         logger.exception("SupportService.answer failed, falling back to chat_as_alina")
