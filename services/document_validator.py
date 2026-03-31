@@ -186,17 +186,39 @@ class DocumentValidator:
             return None
 
     async def _list_folder_files(self, folder_id: str) -> list[dict]:
-        """List files (not subfolders) in the root folder."""
+        """List files in root folder and one level of subfolders.
+
+        Client folders contain subfolders (e.g. "Неразобранное", "Паспорт", etc.)
+        with files inside — so we scan root + all immediate subfolders.
+        """
+        all_files: list[dict] = []
         try:
             async with self._session.post(
                 f"{self._bitrix_base}/disk.folder.getchildren",
-                data={"id": folder_id, "filter[TYPE]": "file"},
+                data={"id": folder_id},
             ) as resp:
                 data = await resp.json(content_type=None)
-            return data.get("result", [])
+            items = data.get("result", [])
         except Exception:
             logger.warning("[VALIDATOR] disk.folder.getchildren failed for folder_id=%s", folder_id)
             return []
+
+        for item in items:
+            if item.get("TYPE") == "file":
+                all_files.append(item)
+            elif item.get("TYPE") == "folder":
+                # One level deep
+                try:
+                    async with self._session.post(
+                        f"{self._bitrix_base}/disk.folder.getchildren",
+                        data={"id": item["ID"], "filter[TYPE]": "file"},
+                    ) as resp:
+                        sub = await resp.json(content_type=None)
+                    all_files.extend(sub.get("result", []))
+                except Exception:
+                    logger.warning("[VALIDATOR] subfolder scan failed id=%s", item.get("ID"))
+
+        return all_files
 
     async def _download_file(self, file_info: dict) -> bytes | None:
         """Download file content from Bitrix disk."""
