@@ -21,6 +21,7 @@ from services.evaluator import EvaluatorService
 from services.imconnector import ImConnectorService
 from webhook_server import create_webhook_app
 from services.document_validator import DocumentValidator
+from services.electronic_case import ElectronicCaseService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -89,6 +90,14 @@ async def main():
 
     # Register handlers
     register_all_handlers(dp)
+
+    # Electronic Case Service (T22)
+    electronic_case_svc = ElectronicCaseService(
+        http_session=http_session,
+        cases_url=settings.supabase_cases_url,
+        cases_key=settings.supabase_cases_anon_key,
+    )
+    dp["electronic_case_svc"] = electronic_case_svc
 
     # Document validator (T20)
     document_validator = DocumentValidator(
