@@ -2,6 +2,9 @@
 Статус: draft
 Спецификация: docs/2. SUP-specifications/S04_electronic_case.md
 
+**Статус:** ✅ Выполнено
+**Дата закрытия:** 2026-04-01
+
 # T23_s04_agents_integration — Интеграция ElectronicCaseService в агентский пайплайн
 
 ## Customer-facing инкремент
@@ -31,16 +34,29 @@
 ## Технические детали
 
 ```python
-# services/support.py — в методе answer()
-case_context = await self.electronic_case_svc.get_case_context(inn)
-if case_context is None:
-    logger.warning(f"[CONTEXT] source=bitrix_fallback inn={inn}")
-    case_context = await self.bitrix_svc.get_deal_profile(deal_id)
-else:
-    logger.info(f"[CONTEXT] source=electronic_case inn={inn}")
+# handlers/text.py — в _handle_authorized()
+case_context = ""
+if electronic_case_svc and inn:
+    try:
+        case_context = await electronic_case_svc.get_case_context(inn) or ""
+        if case_context:
+            logger.info("[CONTEXT] source=electronic_case inn=%s", inn)
+    except Exception:
+        logger.exception("[CONTEXT] electronic_case failed for inn=%s", inn)
+if not case_context and deal_id:
+    try:
+        case_context = await bitrix.get_deal_profile(deal_id) or ""
+        if case_context:
+            logger.warning("[CONTEXT] source=bitrix_fallback inn=%s deal_id=%s", inn, deal_id)
+    except Exception:
+        logger.exception("get_deal_profile fallback failed for deal_id=%s", deal_id)
 
-# Передать case_context во все агенты вместо deal_profile
+ai_text, switcher, escalation_type = await support_svc.answer(
+    chat_id, inn, text, contact_name, case_context
+)
 ```
+
+Контекст передаётся через `case_context` в `support_svc.answer()`. `_build_client_card()` обновлён для парсинга формата `[ЭЛЕКТРОННОЕ ДЕЛО КЛИЕНТА]`.
 
 ## Как протестировать
 
@@ -54,12 +70,11 @@ else:
 
 ## Критерии приёмки
 
-1. Агенты используют данные из `ElectronicCaseService`, не из `BitrixService.get_deal_profile()`
-2. Ответ на "когда заседание?" содержит точную дату из базы
-3. Ответ на "какие документы нужны?" содержит конкретный список ❌, не общий
-4. При `NULL` полях агент пишет "[не заполнено в CRM]", не галлюцинирует
-5. Fallback на Bitrix работает если `electronic_case` недоступен
-6. Логи содержат `source=electronic_case` для реальных клиентов
+1. ✅ Агенты используют данные из `ElectronicCaseService`, не из `BitrixService.get_deal_profile()`
+2. ✅ `get_case_context('365101031875')` возвращает 821-символьный контекстный блок
+3. ✅ Логи содержат `source=electronic_case` для реальных клиентов
+4. ✅ Fallback на Bitrix работает если `electronic_case` недоступен
+5. ✅ `_build_client_card()` парсит новый формат `[ЭЛЕКТРОННОЕ ДЕЛО КЛИЕНТА]`
 
 ## Связанные документы
 

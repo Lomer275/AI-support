@@ -35,9 +35,9 @@
 - [x] Создать `services/document_validator.py`: 3-уровневая проверка (фильтр → GPT-4o-mini Vision → полнота чеклиста) (T20)
 - [ ] Уведомление клиенту в Telegram при отклонении документа (T21)
 
-**Phase 5 — Сервис и интеграция с агентами:** 🔵 In Progress
+**Phase 5 — Сервис и интеграция с агентами:** ✅ Done
 - [x] Создать `services/electronic_case.py`: `get_case_context()`, `get_checklist_status()` (T22)
-- [ ] Инжектировать контекст электронного дела во все R1/R2/Coordinator промпты, заменить `BitrixService.get_deal_profile()` в чате (T23)
+- [x] Инжектировать контекст электронного дела во все R1/R2/Coordinator промпты, заменить `BitrixService.get_deal_profile()` в чате (T23)
 
 ### Не входит:
 
@@ -280,7 +280,7 @@ bitrix_id       TEXT    -- для дедупликации
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
 | T22 | [`services/electronic_case.py`: `get_case_context()`, `get_checklist_status()`](../3.%20SUP-tasks/Done/S04_electronic_case_done/T22_s04_electronic_case_service_done.md) | T17, T18 | ✅ 2026-03-31 |
-| T23 | [Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` в чате](../3.%20SUP-tasks/T23_s04_agents_integration.md) | T22 | 🔵 Planned |
+| T23 | [Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` в чате](../3.%20SUP-tasks/Done/S04_electronic_case_done/T23_s04_agents_integration_done.md) | T22 | ✅ 2026-04-01 |
 
 ---
 

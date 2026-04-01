@@ -75,7 +75,7 @@ T01–T05 независимы, T06 зависит от всех.
 | [T20](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T20_s04_document_validator_done.md) | `document_validator.py`: фильтр → GPT Vision → чеклист | ✅ 2026-03-31 |
 | [T21](docs/3.%20SUP-tasks/T21_s04_document_rejection_notification.md) | Уведомление клиенту при отклонении документа | ⏸ отложено |
 | [T22](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T22_s04_electronic_case_service_done.md) | `electronic_case.py`: `get_case_context()`, `get_checklist_status()` | ✅ 2026-03-31 |
-| [T23](docs/3.%20SUP-tasks/T23_s04_agents_integration.md) | Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` | pending |
+| [T23](docs/3.%20SUP-tasks/Done/S04_electronic_case_done/T23_s04_agents_integration_done.md) | Инжект контекста в R1/R2/Coordinator; заменить `get_deal_profile()` | ✅ 2026-04-01 |
 
 ---
 

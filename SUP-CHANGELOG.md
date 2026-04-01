@@ -3,6 +3,7 @@
 ## [Не выпущено]
 
 ### Added
+- S04/T23: `handlers/text.py` — `ElectronicCaseService` инжектирован в `_handle_authorized()`; `get_case_context(inn)` заменяет `get_deal_profile()` как основной источник контекста; fallback на Bitrix при `None`; `_build_client_card()` в `support.py` обновлён для парсинга формата `[ЭЛЕКТРОННОЕ ДЕЛО КЛИЕНТА]`; логи `source=electronic_case` / `source=bitrix_fallback` (принято 2026-04-01)
 - S04/T22: `services/electronic_case.py` — `ElectronicCaseService` с `get_case_context()` и `get_checklist_status()`; форматированный контекст клиента из Supabase `electronic_case`; декодирование стадий через `STAGE_LABELS`; ✅/❌/⬜ чеклист документов; инициализирован в `bot.py`, доступен через `dp["electronic_case_svc"]` (принято 2026-03-31)
 - S04/T20: `services/document_validator.py` — GPT-4o-mini Vision классификация документов из папки `Неразобранное`; 18 типов чеклиста; `checklist_completion` пересчёт; поддержка PDF (PyMuPDF) и изображений (Pillow) (принято 2026-03-31)
 - S04/T19: webhook `ONCRMDEALUPDATE` → `/bitrix/crm-deal-update` → upsert в `electronic_case`; `services/cases_mapper.py` вынесен как общий модуль; вебхук зарегистрирован в Bitrix и протестирован (принято 2026-03-31)
