@@ -487,7 +487,7 @@ WEBHOOK_PORT=8080            # Порт aiohttp webhook-сервера
 | T13 | EvaluatorService + `quality_run.py`: автоматический прогон и оценка качества | T12 | ✅ 2026-03-27 |
 | T14 | ImConnectorService: OAuth + отправка в Bitrix Open Lines + CRM-активность + перевод на ответственного | T12 | ✅ 2026-03-27 |
 | T15 | Webhook-сервер: aiohttp WebApp, парсинг Bitrix-webhook, пересылка оператора → Telegram | T14 | ✅ 2026-03-27 |
-| T16 | Стейт-машина эскалации: bot_sessions схема, маршрутизация, watchdog, возобновление ИИ | T15 | 🔵 Planned |
+| T16 | Стейт-машина эскалации: bot_sessions схема, маршрутизация, watchdog, возобновление ИИ | T15 | ✅ 2026-03-27 |
 
 ---
 

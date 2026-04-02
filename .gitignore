@@ -10,3 +10,4 @@ build/
 .vscode/
 .mcp.json
 .claude/settings.local.json
+.servers

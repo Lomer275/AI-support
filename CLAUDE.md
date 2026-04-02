@@ -2,172 +2,99 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+"Alina" — AI-powered Telegram support bot for ArbitrA (Express-Bankrot). Auth via INN+phone → Bitrix24 CRM → multi-agent GPT chat with operator escalation.
 
-"Alina" — an AI-powered customer support Telegram bot for ArbitrA (Express-Bankrot legal/bankruptcy service). Authenticates clients via INN (Russian tax ID) + phone number, links them to Bitrix24 CRM deals, and provides GPT-powered chat support.
-
-## Running the Bot
+## Dev Commands
 
 ```bash
-# Local development
-pip install -r requirements.txt
-python bot.py
-
-# Docker (production)
-docker compose up -d --build
-docker compose logs -f bot
-docker compose down
+python bot.py                                          # local run
+python scripts/quality_run.py --output results.json   # quality eval (anon)
+python scripts/quality_run.py --inn 123456789012 --output r.json  # with real client
+python scripts/quality_run.py --limit 5 --output r.json           # smoke test
+python scripts/sync_bitrix_to_cases.py                # full Bitrix→Supabase sync (~1000 deals)
+python scripts/sync_bitrix_to_cases.py --limit 5      # smoke test sync
+docker compose up -d --build && docker compose logs -f bot
 ```
-
-No test suite exists. Manual testing follows the state machine flow described in `docs/5. SUP-unsorted/ТЗ.md`.
 
 ## Architecture
 
 ### State Machine
+Session state in Supabase `bot_sessions` (keyed by `chat_id`), not Aiogram FSM. States: `"waiting_inn"` → `"waiting_phone"` → `"authorized"`. `/start` in non-auth state resets session + `error_count`; in auth state shows menu without reset.
 
-Session state is persisted in **Supabase** table `bot_sessions` (keyed by `chat_id`), not Aiogram FSM. States are defined in `states.py` as string constants (`"waiting_inn"`, `"waiting_phone"`, `"authorized"`):
+### Services
+Single `aiohttp.ClientSession` shared by all services (created in `bot.py`):
+`SupabaseService`, `BitrixService`, `OpenAIService`, `SupportSupabaseService`, `SupportService`, `EvaluatorService`, `ImConnectorService`, `ElectronicCaseService` — injected into `dp` (workflow_data), accessed via middleware as `data["service_name"]`.
 
-```
-/start (not AUTHORIZED) → WAITING_INN → WAITING_PHONE → AUTHORIZED
-                                  ↑ (INN not found)     ↑ (phone mismatch)
-/start (AUTHORIZED) → shows menu, no reset
-```
+`DocumentValidator` (S04/T20): three-level pipeline — format filter → GPT-4o-mini Vision (classify doc type + readability) → update `checklist_completion` in `electronic_case` Supabase. Triggered from `webhook_server.py` on new files in a Bitrix deal folder. Uses `CHECKLIST_ITEMS` (18 doc types, fixed denominator).
 
-`/start` in non-authorized states resets the session to `waiting_inn`, clearing all CRM fields and `error_count`. If already `AUTHORIZED`, `/start` shows the menu without resetting.
+`ElectronicCaseService` (S04/T22–T23): reads `electronic_case` Supabase project, returns formatted context strings for AI agents. Replaces `BitrixService.get_deal_profile()` in the chat pipeline.
 
-### Request Flow
-
-1. Telegram update → `middlewares/session.py` calls Supabase RPC `get_or_create_session`, deduplicates by `update_id` (returns `is_duplicate: true` for replays → middleware drops them)
-2. Middleware injects `data["session"]` and `data["supabase"]` into handler context
-3. Handler routing by update type and `session["state"]`
-4. External calls: Supabase (state storage), Bitrix24 (CRM lookup), OpenAI (response generation)
-
-### Service Wiring
-
-All services share a **single** `aiohttp.ClientSession` created in `bot.py` and closed on shutdown. Five services are initialized:
-- `SupabaseService` → `dp["supabase"]` — session state
-- `BitrixService` → `dp["bitrix"]` — CRM lookup
-- `OpenAIService` → `dp["openai_svc"]` — pre-auth prompts
-- `SupportSupabaseService` → `dp["support_supabase"]` — documents + chat history (separate Supabase project)
-- `SupportService` → `dp["support_svc"]` — multi-agent pipeline for authorized chat
-
-The middleware re-injects `supabase` directly into `data`.
-
-### Contact Handler (phone verification)
-
-`handlers/contact.py` handles the `F.contact` update (Telegram share-phone button). Only acts in `WAITING_PHONE` state:
-1. Normalizes both phones to last 10 digits
-2. **Match:** calls `bitrix.update_deal_authorized()`, updates session to `AUTHORIZED`, sends 2-message welcome (welcome text + menu)
-3. **Mismatch:** calls `openai_svc.phone_mismatch()` — response always includes @Lobster_21 escalation contact
-
-### INN Error Counter
-
-`error_count` is stored in `bot_sessions` and incremented on every failed attempt in `WAITING_INN` (invalid INN format or INN not found in Bitrix — both count). Escalation tiers:
-- `error_count = 1`: standard AI response
-- `error_count >= 2`: AI response + mandatory mention of @Lobster_21
-
-`error_count` resets to 0 on `/start`. Bitrix unavailability (exception) does **not** increment the counter.
+`cases_mapper.py`: shared mapping Bitrix deal dict → `electronic_case` Supabase rows. Used by both `sync_bitrix_to_cases.py` (bulk) and `webhook_server.py` (real-time).
 
 ### Handler Registration Order (important)
-
-Handlers are registered in `handlers/__init__.py` in this order:
-
-1. `start_router` — `/start` command
-2. `contact_router` — `F.contact` (phone share button)
-3. `callbacks_router` — inline button callbacks (`back_menu`, `menu_*`)
-4. `text_router` — `F.text` catch-all, routes by state
-
-The text router must remain last to avoid shadowing more specific handlers.
+`handlers/__init__.py`: start_router → contact_router → callbacks_router → text_router. Text router must be last or it shadows other handlers.
 
 ### Bitrix24 Integration
+`services/bitrix.py` uses `/batch` API. Hardcoded field IDs:
+- `UF_CRM_1751273997835` — INN
+- `UF_CRM_1768296374` — auth status
+- `UF_CRM_1768547250879` — auth timestamp
 
-`services/bitrix.py` uses a **batch API call** (`/batch`) to fetch deal → contacts → contact detail in one request. Hardcoded custom field IDs:
+Search: `CATEGORY_ID=4`, `STAGE_SEMANTIC_ID=P`, order by `DATE_CREATE DESC`.
 
-- `UF_CRM_1751273997835` — INN field on deal
-- `UF_CRM_1768296374` — auth status field
-- `UF_CRM_1768547250879` — auth timestamp field
-
-Search filters: `CATEGORY_ID=4`, `STAGE_SEMANTIC_ID=P` (active/in-progress deals only), ordered by `DATE_CREATE DESC`.
-
-### OpenAI Integration
-
-`services/openai_client.py` handles pre-authorization states with 5 methods:
-- `no_inn_in_text(user_text, digit_count, escalate)` — invalid INN format
-- `inn_not_found(escalate)` — INN not in Bitrix
-- `waiting_for_phone(user_text)` — phone verification guidance
-- `phone_mismatch()` — always includes @Lobster_21
-- `chat_as_alina(user_text, contact_name)` — fallback-only for authorized state
-
-All prompts enforce first-person Russian speech as "Alina". Uses `OPENAI_MODEL` (default: `gpt-4o-mini`). Returns `str | None` — every handler has a hardcoded fallback string for `None`.
-
-### Multi-Agent Support Pipeline (S02)
-
-Authorized chat uses `SupportService` (`services/support.py`) instead of a single prompt. The pipeline:
-
+### Multi-Agent Pipeline (S02)
 ```
-R1 round: _r1_lawyer + _r1_sales (parallel) → _r1_manager (sequential)
-R2 round: _r2_lawyer → _r2_manager → _r2_sales (sequential, uses R1 output)
-Coordinator: combines full discussion → JSON {"answer": "...", "switcher": "true"|"false"}
+R1: _r1_lawyer + _r1_sales (parallel) → _r1_manager
+R2: _r2_lawyer → _r2_manager → _r2_sales
+Coordinator → JSON {"answer": "...", "switcher": "true"|"false"}
 ```
+- Support agents: `OPENAI_MODEL_SUPPORT` (default: `gpt-4o-mini`); Coordinator: `OPENAI_MODEL_COORDINATOR` (default: `gpt-4o`)
+- Context: last 10 messages from `chat_history` + client docs from support Supabase
+- `switcher=true` → `escalation_state="pending"` → ImConnector chat created
+- Fallback: `SupportService` exception → `chat_as_alina()` → hardcoded `FALLBACK_ALINA`
 
-- **Models:** support agents use `OPENAI_MODEL_SUPPORT` (default: `gpt-4o-mini`); coordinator uses `OPENAI_MODEL_COORDINATOR` (default: `gpt-4o`)
-- **Context:** loads last 10 messages from `chat_history` + client documents from support Supabase
-- **Entry point:** `support_svc.answer(chat_id, inn, question, contact_name)` — saves Q+A to `chat_history`, returns answer string
-- **`switcher` field:** currently a stub (always ignored); future use for operator escalation
-- **Fallback chain:** `SupportService` exception → `openai_svc.chat_as_alina()` → hardcoded `FALLBACK_ALINA`
+### Escalation State Machine
+`escalation_state`: null → `"pending"` → `"in_operator_chat"` → `"closed"`. Watchdog (every 5 min) auto-returns AI after 60 min no operator reply. Don't update `escalation_state` outside this flow.
 
-`SupportSupabaseService` (`services/supabase_support.py`) connects to a **separate** Supabase project:
-- `search_client_by_inn(inn)` — RPC to fetch judicial documents, returns formatted string
-- `get_chat_history(chat_id, limit=10)` — fetches from `chat_history` table
-- `save_chat_message(chat_id, role, content)` — persists messages (role: `"user"` | `"assistant"`)
+Webhook server (`webhook_server.py`, port 8080):
+- `POST /webhook/bitrix/` — `ONIMCONNECTORMESSAGEADD` (operator message → Telegram), `IMOPENLINES.SESSION.FINISH` (chat closed → reset escalation). Parses BB-code, downloads file attachments to `documents/`.
+- `POST /bitrix/crm-deal-update` — `ONCRMDEALUPDATE`/`ONCRMDEALADD` → upsert in `electronic_case` Supabase (real-time deal sync) + trigger `DocumentValidator` on new files.
 
-### Menu Sections
-
-The 4 main menu buttons (`menu_chat`, `menu_payment`, `menu_tasks`, `menu_docs`) are handled in `handlers/callbacks.py`. **Only `menu_chat` is functional** — payment, tasks, and documents sections are stubs showing "в разработке" messages.
+### INN Error Counter
+`error_count` in `bot_sessions`: incremented on invalid format or INN not found. `error_count=1` → standard response; `≥2` → mandatory @Lobster_21 mention. Bitrix exception does NOT increment.
 
 ### Key Utilities
+- `normalize_phone()` — last 10 digits (strips +7/8/country code)
+- `extract_inn()` — exactly 12-digit sequences only; returns `max_digit_sequence_length` for AI context. 10-digit INN (legal entities) not supported.
+- `moscow_now()` — UTC+3 ISO timestamp
 
-- `normalize_phone()` — strips non-digits, returns last 10 digits for comparison
-- `extract_inn()` — finds exactly 12-digit sequences; also returns `max_digit_sequence_length` for AI context. Note: 10-digit INN (legal entities) is not supported.
-- `moscow_now()` — ISO timestamp in UTC+3 for Bitrix auth timestamp field
+## Environment Variables
 
-## Environment Variables (`.env`)
+Required: `BOT_TOKEN`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SUPPORT_URL`, `SUPABASE_SUPPORT_ANON_KEY`, `SUPABASE_CASES_URL`, `SUPABASE_CASES_ANON_KEY`, `BITRIX_WEBHOOK_BASE`, `BITRIX_URL`, `BITRIX_OAUTH_CLIENT_ID`, `BITRIX_OAUTH_CLIENT_SECRET`, `BITRIX_OAUTH_ACCESS_TOKEN`, `BITRIX_OAUTH_REFRESH_TOKEN`, `OPENAI_API_KEY`
 
-```
-BOT_TOKEN=                  # Telegram bot token
-SUPABASE_URL=               # Main Supabase project URL (bot_sessions table)
-SUPABASE_ANON_KEY=          # Main Supabase anon key
-SUPABASE_SUPPORT_URL=       # Support Supabase project URL (chat_history + documents)
-SUPABASE_SUPPORT_ANON_KEY=  # Support Supabase anon key
-BITRIX_WEBHOOK_BASE=        # Bitrix24 webhook base URL (no trailing slash)
-OPENAI_API_KEY=             # OpenAI API key
-OPENAI_MODEL=               # Pre-auth prompts model (default: gpt-4o-mini)
-OPENAI_MODEL_SUPPORT=       # Support agents model (default: gpt-4o-mini)
-OPENAI_MODEL_COORDINATOR=   # Coordinator agent model (default: gpt-4o)
-OPENAI_PROXY=               # Optional: HTTP/SOCKS5 proxy URL for OpenAI calls
-```
+Optional (with defaults): `OPENAI_MODEL` (gpt-4o-mini), `OPENAI_MODEL_SUPPORT` (gpt-4o-mini), `OPENAI_MODEL_COORDINATOR` (gpt-4o), `OPENAI_MODEL_VALIDATOR` (gpt-4o-mini), `OPENAI_PROXY`, `BITRIX_OPENLINE_ID` (56), `BITRIX_CONNECTOR_ID` (tg_alina_support), `WEBHOOK_PORT` (8080)
 
-## Deployment Note
+## Critical Notes
 
-Before deploying, deactivate the corresponding n8n workflow on `n8n.arbitra.online` to prevent duplicate message handling. The VPS is at `89.223.125.143`.
+- **HTML Parse Mode:** `ParseMode.HTML` — use `<b>/<i>/<code>` not Markdown. Escape `<`, `>`, `&` in dynamic content.
+- **Transport:** Long-polling only. Port 8080 is for Bitrix webhooks, NOT Telegram.
+- **Fallbacks:** Every external call (OpenAI/Bitrix/Supabase) has hardcoded fallback string — bot never crashes.
+- **Deduplication:** Supabase RPC `get_or_create_session` returns `is_duplicate: true` for replayed `update_id` — middleware drops them.
+- **Three Supabase projects:** main (`bot_sessions`), support (`chat_history`, judicial docs), electronic_case (`cases`, `communications`, checklist) — each has its own URL/key pair.
+- **Bitrix batch:** `get_deal()` and `get_deal_profile()` use `/batch` — cache profile during session.
 
-## Docs Structure
+## Deployment
 
-```
-docs/
-├── 1. SUP-business requirements/   # BR01_ai_manager_bfl.md — product vision, JTBD, roadmap
-├── 2. SUP-specifications/          # S01 (authorization), S02 (multi-agent chat)
-├── 3. SUP-tasks/Done/              # Completed task files T01–T09 with acceptance criteria
-├── 4. SUP-guides/                  # Internal conventions, templates, versioning guides
-└── 5. SUP-unsorted/                # ТЗ.md (original TZ), questions.md (92 typical client questions), agent prompts
-```
+Before deploy: deactivate n8n workflow on `n8n.arbitra.online` to prevent duplicate handling. VPS: `89.223.125.143`.
 
-Root-level docs: `SUP-architecture.md` (system design), `SUP-HANDOFF.md` (current status + priorities), `CHANGELOG.md`, `SUP-CHANGELOG.md`.
+## Docs
 
-## Planned Features (from BR01)
+- Specs: `docs/2. SUP-specifications/` (S01–S04)
+- Active tasks: `docs/3. SUP-tasks/` (T17–T23 = S04); done tasks in `Done/`
+- Architecture: `SUP-architecture.md`; status: `SUP-HANDOFF.md`
 
-Implemented: authorization (S01) and multi-agent AI chat (S02). Upcoming:
-- **Stage 3:** Document collection — read checklist from Bitrix, accept files → upload to Bitrix folder `UF_FOLDER_ID`
-- **Stage 4:** Proactive notifications (scheduled outreach, court events from Bitrix)
-- **Stage 5:** Operator escalation — `switcher=true` in coordinator output → queue with context handoff
-- **Stage 6:** Tasks and payment sections (currently stubs in `menu_tasks`, `menu_payment`)
+## Implementation Status
+
+- **Done:** S01 (auth), S02 (multi-agent chat), S03 (quality eval + operator escalation)
+- **Next:** S04 — Electronic Case (T17–T23, `docs/2. SUP-specifications/S04_electronic_case.md`)
+- **Planned:** S05 (proactive notifications), S06 (menu: tasks + payments)
