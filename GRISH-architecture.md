@@ -1,4 +1,4 @@
-# SUP-architecture
+# GRISH-architecture
 
 **Статус:** актуально
 **Дата:** 2026-04-02
@@ -333,4 +333,4 @@ Open Lines: `connector_id=tg_alina_support`, `openline_id=56`.
 ## Связанные документы
 
 - [CLAUDE.md](CLAUDE.md) — инструкции для разработки
-- [docs/4. SUP-guides/](docs/4.%20SUP-guides/) — гайды по архитектуре, спекам, задачам, версионированию
+- [docs/4. GRISH-guides/](docs/4.%20GRISH-guides/) — гайды по архитектуре, спекам, задачам, версионированию
