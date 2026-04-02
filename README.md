@@ -1,49 +1,69 @@
 # Alina — AI-поддержка клиентов АрбитрА
 
-**Текущая версия:** v1.1.0 (S01 Authorization complete)
+**Текущая версия:** v2.0.0 (S01–S03 complete, S04 in progress)
 
 > Документация проекта: [`docs/`](docs/)
-> Конвенции: [`docs/4. SUP-guides/doc_conventions.md`](docs/4.%20SUP-guides/doc_conventions.md)
+> Конвенции: [`docs/4. GRISH-guides/doc_conventions.md`](docs/4.%20GRISH-guides/doc_conventions.md)
 
 ## Overview
 
-Telegram-бот **Алина** — AI-ассистент клиентской поддержки сервиса [Экспресс-Банкрот](https://express-bankrot.ru). Аутентифицирует клиентов по ИНН (12 цифр) и номеру телефона, связывает их со сделками в Bitrix24 CRM, и ведёт диалог через GPT (образ «Алина»).
+Telegram-бот **Алина** — AI-менеджер сопровождения клиентов по банкротству физических лиц (БФЛ). Аутентифицирует клиентов по ИНН (12 цифр) и номеру телефона, связывает их со сделками в Bitrix24 CRM, ведёт диалог через многоагентный GPT-pipeline (образ «Алина») и при необходимости переключает на живого оператора через Bitrix Open Lines.
 
-Основные технологии: Python 3.11, Aiogram 3.x, Supabase (состояние сессий), Bitrix24 REST API, OpenAI API.
+Основные технологии: Python 3.11, Aiogram 3.x, aiohttp, Supabase (3 проекта), Bitrix24 REST API, OpenAI API.
 
 ## Components
 
-- **Bot** ([bot.py](bot.py)) — точка входа, инициализация сервисов и диспетчера.
-- **Handlers** ([handlers/](handlers/)) — обработчики событий по типам:
-  - `start.py` — команда `/start`, сброс сессии
-  - `contact.py` — получение номера телефона через кнопку
-  - `text.py` — текстовые сообщения, роутинг по состоянию сессии
+- **Bot** ([bot.py](bot.py)) — точка входа: инициализирует все сервисы, единый `aiohttp.ClientSession`, запускает polling + webhook-сервер + escalation watchdog.
+- **Handlers** ([handlers/](handlers/)) — порядок регистрации важен: `start → contact → callbacks → text`
+  - `start.py` — команда `/start`; сбрасывает сессию только если не авторизован
+  - `contact.py` — верификация телефона через кнопку Telegram
+  - `text.py` — роутинг текстовых сообщений по состоянию сессии
   - `callbacks.py` — inline-кнопки главного меню
-- **Middlewares** ([middlewares/session.py](middlewares/session.py)) — получение/создание сессии в Supabase, дедупликация по `update_id`
+- **Middlewares** ([middlewares/session.py](middlewares/session.py)) — создание/получение сессии в Supabase, дедупликация по `update_id`
+- **Webhook Server** ([webhook_server.py](webhook_server.py), порт 8080) — aiohttp-сервер для событий Bitrix24:
+  - `POST /webhook/bitrix/` — сообщение оператора → Telegram, закрытие чата → сброс эскалации
+  - `POST /bitrix/crm-deal-update` — изменение сделки → upsert в `electronic_case` Supabase + запуск `DocumentValidator`
 - **Services** ([services/](services/)):
-  - `supabase.py` — хранение состояния сессий (таблица `bot_sessions`)
-  - `bitrix.py` — поиск сделок по ИНН через batch API
-  - `openai_client.py` — генерация ответов (5 промптов под разные состояния)
-- **State Machine** ([states.py](states.py)) — три состояния: `waiting_inn`, `waiting_phone`, `authorized`
-- **Keyboards** ([keyboards.py](keyboards.py)) — ReplyKeyboard и InlineKeyboard
-- **Utils** ([utils.py](utils.py)) — `normalize_phone()`, `extract_inn()`, `moscow_now()`
+  - `supabase.py` — состояние сессий (`bot_sessions`)
+  - `bitrix.py` — поиск сделок по ИНН (batch API), обновление полей авторизации
+  - `openai_client.py` — базовые AI-ответы (5 промптов под разные состояния)
+  - `support.py` — многоагентный pipeline (R1→R2→Coordinator), метод `answer()`
+  - `supabase_support.py` — история чатов и судебные документы клиента
+  - `imconnector.py` — Bitrix Open Lines (OAuth, отправка в чат оператора)
+  - `evaluator.py` — оценка ответов по 6 критериям (1–5 баллов)
+  - `electronic_case.py` — чтение электронного дела клиента из Supabase
+  - `document_validator.py` — валидация документов через GPT-4o-mini Vision, обновление чеклиста
+  - `cases_mapper.py` — маппинг Bitrix-сделки в строки `electronic_case` Supabase
 
 ### State Machine
 
 ```
 /start (не авторизован) → WAITING_INN → WAITING_PHONE → AUTHORIZED
-                                  ↑ (ИНН не найден)     ↑ (телефон не совпал)
 /start (авторизован) → показывает меню, сессия не сбрасывается
 ```
 
-`/start` сбрасывает сессию в `waiting_inn` только для неавторизованных. Для уже авторизованного клиента открывает главное меню.
+Состояние хранится в Supabase `bot_sessions`, не в Aiogram FSM.
+
+### Multi-Agent Pipeline (S02)
+
+```
+R1: _r1_lawyer + _r1_sales (параллельно) → _r1_manager
+R2: _r2_lawyer → _r2_manager → _r2_sales
+Coordinator → JSON {"answer": "...", "switcher": "true"|"false"}
+```
+
+`switcher=true` → escalation_state="pending" → создаётся чат в Bitrix Open Lines.
+
+### Escalation State Machine
+
+`escalation_state`: `null` → `"pending"` → `"in_operator_chat"` → `"closed"`. Watchdog каждые 5 мин возвращает AI после 60 мин без ответа оператора.
 
 ## Requirements
 
 - Python 3.11+
-- Аккаунт Supabase с таблицей `bot_sessions` и RPC `get_or_create_session`
+- Три проекта Supabase: основной (`bot_sessions`), support (`chat_history`, документы), electronic_case (`cases`, `communications`)
 - Telegram Bot Token (через @BotFather)
-- Bitrix24 с настроенным webhook и полями ИНН на сделках
+- Bitrix24 с настроенным webhook, OAuth и полями ИНН/авторизации на сделках
 - OpenAI API Key
 
 ## Initial Setup
@@ -60,7 +80,7 @@ pip install -r requirements.txt
 
 ### 2. Конфигурация
 
-Создайте файл `.env` в корне проекта (см. раздел **Environment Configuration**).
+Создайте файл `.env` в корне проекта (см. **Environment Configuration**).
 
 ### 3. Запуск
 
@@ -70,16 +90,42 @@ python bot.py
 
 ## Environment Configuration
 
-Переменные загружаются из `.env`. Не коммитьте секреты.
-
 ```text
-BOT_TOKEN=           # Telegram bot token от @BotFather
-SUPABASE_URL=        # URL Supabase проекта
-SUPABASE_ANON_KEY=   # Anon key Supabase
-BITRIX_WEBHOOK_BASE= # Base URL Bitrix24 webhook (без слеша в конце)
-OPENAI_API_KEY=      # OpenAI API key
-OPENAI_MODEL=        # Модель OpenAI, например: gpt-4o-mini
-OPENAI_PROXY=        # Опционально: HTTP/SOCKS5 прокси для запросов к OpenAI
+# Telegram
+BOT_TOKEN=
+
+# Supabase — основной (bot_sessions)
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+
+# Supabase — support (chat_history, документы)
+SUPABASE_SUPPORT_URL=
+SUPABASE_SUPPORT_ANON_KEY=
+
+# Supabase — electronic_case (cases, communications)
+SUPABASE_CASES_URL=
+SUPABASE_CASES_ANON_KEY=
+
+# Bitrix24
+BITRIX_WEBHOOK_BASE=        # Base URL webhook (без слеша в конце)
+BITRIX_URL=                 # URL портала Bitrix24
+BITRIX_OAUTH_CLIENT_ID=
+BITRIX_OAUTH_CLIENT_SECRET=
+BITRIX_OAUTH_ACCESS_TOKEN=
+BITRIX_OAUTH_REFRESH_TOKEN=
+BITRIX_OPENLINE_ID=56       # ID очереди Open Lines
+BITRIX_CONNECTOR_ID=tg_alina_support
+
+# OpenAI
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini           # Базовые ответы
+OPENAI_MODEL_SUPPORT=gpt-4o-mini   # Support-агенты
+OPENAI_MODEL_COORDINATOR=gpt-4o    # Coordinator + Evaluator
+OPENAI_MODEL_VALIDATOR=gpt-4o-mini # DocumentValidator
+OPENAI_PROXY=                      # Опционально: HTTP/SOCKS5
+
+# Server
+WEBHOOK_PORT=8080
 ```
 
 ## Running
@@ -93,74 +139,12 @@ python bot.py
 ### Docker (production)
 
 ```bash
-# Запуск
 docker compose up -d --build
-
-# Логи
 docker compose logs -f bot
-
-# Остановка
 docker compose down
 ```
 
-> **Важно перед деплоем:** деактивируйте соответствующий workflow в n8n на `n8n.arbitra.online`, чтобы избежать дублирования обработки сообщений. VPS: `89.223.125.143`.
-
-## Project Structure
-
-```text
-/
-├── handlers/
-│   ├── __init__.py          # Регистрация роутеров (порядок важен)
-│   ├── start.py             # /start — сброс сессии
-│   ├── contact.py           # Получение телефона через кнопку
-│   ├── text.py              # Текстовые сообщения (catch-all)
-│   └── callbacks.py         # Inline-кнопки меню
-├── middlewares/
-│   ├── __init__.py
-│   └── session.py           # Supabase сессия + дедупликация
-├── services/
-│   ├── __init__.py
-│   ├── supabase.py          # Хранение состояния сессий
-│   ├── bitrix.py            # CRM: поиск сделок по ИНН (batch API)
-│   └── openai_client.py     # GPT-ответы (5 промптов)
-├── docs/                    # Документация проекта
-│   ├── 3. SUP-tasks/        # Задачи
-│   ├── 4. SUP-guides/       # Гайды по разработке
-│   └── 5. SUP-unsorted/     # ТЗ и прочие материалы
-├── bot.py                   # Точка входа
-├── config.py                # Настройки из .env
-├── states.py                # Состояния сессии
-├── keyboards.py             # Клавиатуры
-├── utils.py                 # normalize_phone, extract_inn, moscow_now
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-└── .env                     # Секреты (НЕ КОММИТИТЬ)
-```
-
-## Authorization Flow Details
-
-Реализованные граничные сценарии (S01, все задачи выполнены):
-
-| Сценарий | Поведение |
-|---------|-----------|
-| `/start` при AUTHORIZED | Показывает меню, сессия не сбрасывается |
-| ИНН не найден (1-я попытка) | AI-ответ без упоминания поддержки |
-| ИНН не найден (2-я+ попытка) | AI-ответ + обязательное упоминание @Lobster_21 |
-| Телефон не совпал | AI-ответ + обязательное упоминание @Lobster_21 |
-| Bitrix недоступен (исключение) | «Технические проблемы», `error_count` не растёт |
-| Вопрос по процедуре в `WAITING_INN/PHONE` | Алина отвечает + возвращает клиента к текущему шагу |
-
-## Bitrix24 Integration Notes
-
-Batch-запрос к Bitrix24 ищет сделки с фильтрами: `CATEGORY_ID=4`, `STAGE_SEMANTIC_ID=P` (активные).
-Кастомные поля сделок:
-
-| Поле | Назначение |
-|------|-----------|
-| `UF_CRM_1751273997835` | ИНН клиента |
-| `UF_CRM_1768296374` | Статус авторизации |
-| `UF_CRM_1768547250879` | Временная метка авторизации (UTC+3) |
+> **Важно перед деплоем:** деактивируйте соответствующий workflow в n8n на `n8n.arbitra.online`. VPS: `89.223.125.143`.
 
 ## Troubleshooting
 
@@ -170,4 +154,6 @@ Batch-запрос к Bitrix24 ищет сделки с фильтрами: `CAT
 
 **Supabase RPC ошибка** — убедитесь, что функция `get_or_create_session` создана в БД и `SUPABASE_ANON_KEY` верный.
 
-**ИНН не распознаётся** — бот поддерживает только 12-значный ИНН (физические лица). 10-значный ИНН (юридические лица) не поддерживается.
+**ИНН не распознаётся** — поддерживается только 12-значный ИНН (физические лица). 10-значный ИНН юрлиц не поддерживается.
+
+**Токен Bitrix OAuth истёк** — `ImConnectorService` авторефрешит токен автоматически.

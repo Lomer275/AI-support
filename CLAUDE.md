@@ -89,12 +89,12 @@ Before deploy: deactivate n8n workflow on `n8n.arbitra.online` to prevent duplic
 
 ## Docs
 
-- Specs: `docs/2. SUP-specifications/` (S01–S04)
-- Active tasks: `docs/3. SUP-tasks/` (T17–T23 = S04); done tasks in `Done/`
-- Architecture: `SUP-architecture.md`; status: `SUP-HANDOFF.md`
+- Specs: `docs/2. GRISH-specifications/` (S01–S04)
+- Active tasks: `docs/3. GRISH-tasks/`; done tasks in `Done/`
+- Architecture: `GRISH-architecture.md`; status: `GRISH-HANDOFF.md`
 
 ## Implementation Status
 
 - **Done:** S01 (auth), S02 (multi-agent chat), S03 (quality eval + operator escalation)
-- **Next:** S04 — Electronic Case (T17–T23, `docs/2. SUP-specifications/S04_electronic_case.md`)
+- **Next:** S04 — Electronic Case (T17–T23, `docs/2. GRISH-specifications/S04_electronic_case.md`)
 - **Planned:** S05 (proactive notifications), S06 (menu: tasks + payments)
