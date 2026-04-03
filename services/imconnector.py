@@ -97,9 +97,6 @@ class ImConnectorService:
             except Exception:
                 logger.exception("ImConnector: HTTP error on retry after token refresh")
                 return {}
-            else:
-                logger.error("ImConnector: token refresh failed, cannot retry")
-                return {}
 
         if "error" in data:
             logger.warning("ImConnector: API error for %s: %s", method, data)

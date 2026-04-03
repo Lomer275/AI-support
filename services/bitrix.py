@@ -60,8 +60,7 @@ class BitrixService:
             async with self._session.post(url, data=params) as resp:
                 data = await resp.json(content_type=None)
         except Exception:
-            logger.exception("Bitrix search_by_inn request failed for inn=%s", inn)
-            raise
+            return None
 
         result = data.get("result", {}).get("result", {})
         deals = result.get("deal", [])

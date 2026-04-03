@@ -15,7 +15,9 @@ import re
 from aiogram import Bot
 from aiohttp import web
 
+from services.cases_mapper import DEAL_SELECT, build_case_row, insert_communication, upsert_case
 from services.supabase import SupabaseService
+from utils import moscow_now
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,6 @@ logger = logging.getLogger(__name__)
 def _check_secret(request: web.Request, secret: str | None) -> bool:
     """Verify ?secret= query param matches WEBHOOK_SECRET. Always passes if secret not configured."""
     if not secret:
-        logger.warning("WEBHOOK_SECRET not set — webhook endpoint is unauthenticated")
         return True
     provided = request.rel_url.query.get("secret", "")
     if provided != secret:
@@ -130,7 +131,6 @@ async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> No
         except Exception:
             logger.warning("Failed to send file to chat_id=%s url=%s", chat_id, file_url)
 
-    from utils import moscow_now
     await supabase.update_session(chat_id, operator_last_reply_at=moscow_now())
     logger.info("Operator message forwarded to chat_id=%s", chat_id)
 
@@ -172,8 +172,6 @@ async def _fetch_deal_with_contact(
 
     Returns (deal, contact). contact may be None if CONTACT_ID is missing.
     """
-    from services.cases_mapper import DEAL_SELECT
-
     select_qs = "&".join(f"select[]={f}" for f in DEAL_SELECT)
     contact_select = "select[]=ID&select[]=NAME&select[]=LAST_NAME&select[]=SECOND_NAME&select[]=PHONE"
 
@@ -236,8 +234,6 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
     cases_key = request.app["cases_key"]
 
     try:
-        from services.cases_mapper import build_case_row, upsert_case, insert_communication
-
         deal, contact = await _fetch_deal_with_contact(http_session, bitrix_base, deal_id)
         if deal is None:
             return web.Response(status=200, text="ok")
@@ -284,7 +280,8 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
 async def handle_bitrix_webhook(request: web.Request) -> web.Response:
     """Entry point for Bitrix Open Lines events. Always returns 200."""
     if not _check_secret(request, request.app.get("webhook_secret")):
-        return web.Response(status=403, text="forbidden")
+        # Return 200 to prevent Bitrix retry storm on Open Lines webhooks
+        return web.Response(status=200, text="ok")
 
     try:
         post = await request.post()
@@ -335,6 +332,8 @@ def create_webhook_app(
     app["document_validator"] = document_validator
     app["webhook_secret"] = webhook_secret
     app["_background_tasks"] = set()
+    if not webhook_secret:
+        logger.warning("WEBHOOK_SECRET not set — webhook endpoints are unauthenticated")
     app.router.add_post("/webhook/bitrix/", handle_bitrix_webhook)
     app.router.add_post("/bitrix/crm-deal-update", _handle_crm_deal_update)
     return app
