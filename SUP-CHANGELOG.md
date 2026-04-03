@@ -3,6 +3,9 @@
 ## [Не выпущено]
 
 ### Added
+- S05/T30: `handlers/text.py` — per-chat `asyncio.Lock` в `_handle_authorized()` устраняет тройной ответ AI при быстрой отправке нескольких сообщений; второй и третий вызовы ждут в очереди без блокировки event loop (принято 2026-04-03)
+- S05/T26: `arbitration_manager` (ФИО арбитражного управляющего) верифицирован — поле присутствует в `cases_mapper.py` (UF_CRM_1607524042544) и в `get_case_context()` через `tracked()`; реализовано в S04/T22-T23 (принято 2026-04-03)
+- S05/T24: `services/imconnector.py` — уникальный `msg_id = f"{chat_id}_{timestamp_ms}"` вместо хардкода `"0"`; `asyncio.Lock` для `_refresh_token` предотвращает двойной refresh; таймаут 15s на все HTTP вызовы. `webhook_server.py` — `html.escape()` для текста оператора; логирование raw payload (DEBUG); fallback chat_id через CONNECTOR_MID (принято 2026-04-03)
 - S04/T23: `handlers/text.py` — `ElectronicCaseService` инжектирован в `_handle_authorized()`; `get_case_context(inn)` заменяет `get_deal_profile()` как основной источник контекста; fallback на Bitrix при `None`; `_build_client_card()` в `support.py` обновлён для парсинга формата `[ЭЛЕКТРОННОЕ ДЕЛО КЛИЕНТА]`; логи `source=electronic_case` / `source=bitrix_fallback` (принято 2026-04-01)
 - S04/T22: `services/electronic_case.py` — `ElectronicCaseService` с `get_case_context()` и `get_checklist_status()`; форматированный контекст клиента из Supabase `electronic_case`; декодирование стадий через `STAGE_LABELS`; ✅/❌/⬜ чеклист документов; инициализирован в `bot.py`, доступен через `dp["electronic_case_svc"]` (принято 2026-03-31)
 - S04/T20: `services/document_validator.py` — GPT-4o-mini Vision классификация документов из папки `Неразобранное`; 18 типов чеклиста; `checklist_completion` пересчёт; поддержка PDF (PyMuPDF) и изображений (Pillow) (принято 2026-03-31)
