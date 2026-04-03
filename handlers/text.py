@@ -224,3 +224,20 @@ async def _handle_authorized(
                 "Session escalated for chat_id=%s escalation_type=%s", chat_id, escalation_type
             )
 
+            # T25: transfer to responsible manager
+            assigned_user_id = None
+            if electronic_case_svc and inn:
+                try:
+                    assigned_user_id = await electronic_case_svc.get_assigned_user_id(inn)
+                except Exception:
+                    logger.exception("T25: get_assigned_user_id failed for inn=%s", inn)
+            if assigned_user_id:
+                bitrix_chat_id = await imconnector_svc.get_or_find_bitrix_chat_id(chat_id)
+                if bitrix_chat_id:
+                    await imconnector_svc.transfer_to_responsible(bitrix_chat_id, assigned_user_id)
+                    await supabase.update_session(chat_id, bitrix_chat_id=bitrix_chat_id)
+                else:
+                    logger.warning("T25: could not get bitrix_chat_id for chat_id=%s", chat_id)
+            else:
+                logger.warning("T25: no assigned_user_id for chat_id=%s, skipping transfer", chat_id)
+

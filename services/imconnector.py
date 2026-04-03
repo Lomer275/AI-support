@@ -152,6 +152,61 @@ class ImConnectorService:
             )
         return success
 
+    async def get_or_find_bitrix_chat_id(self, telegram_chat_id: int) -> str | None:
+        """Return Bitrix Open Lines chat_id for the given Telegram chat_id.
+
+        Queries imopenlines.chat.list filtered by USER_ID (connector MID).
+        Returns str(chat_id) or None on error/empty.
+        """
+        try:
+            data = await self._call("imopenlines.chat.list", {
+                "filter": {"USER_ID": str(telegram_chat_id)},
+                "limit": 1,
+            })
+            logger.info("T25: chat.list raw response for telegram_chat_id=%s: %s", telegram_chat_id, data)
+            result = data.get("result") or []
+            if result:
+                chat_id = str(result[0].get("ID") or result[0].get("id") or "")
+                if chat_id:
+                    logger.info(
+                        "T25: found bitrix_chat_id=%s for telegram_chat_id=%s",
+                        chat_id, telegram_chat_id,
+                    )
+                    return chat_id
+            logger.warning(
+                "T25: imopenlines.chat.list returned no chats for telegram_chat_id=%s: %s",
+                telegram_chat_id, data,
+            )
+            return None
+        except Exception:
+            logger.exception(
+                "T25: get_or_find_bitrix_chat_id failed for telegram_chat_id=%s", telegram_chat_id
+            )
+            return None
+
+    async def transfer_to_responsible(self, bitrix_chat_id: str, assigned_user_id: str) -> None:
+        """Transfer Open Lines chat to the deal's responsible manager."""
+        try:
+            data = await self._call("imopenlines.chat.transfer", {
+                "CHAT_ID": bitrix_chat_id,
+                "USER_ID": assigned_user_id,
+            })
+            if data.get("result"):
+                logger.info(
+                    "T25: chat transferred — bitrix_chat_id=%s assigned_user_id=%s",
+                    bitrix_chat_id, assigned_user_id,
+                )
+            else:
+                logger.warning(
+                    "T25: transfer_to_responsible unexpected response — bitrix_chat_id=%s user=%s resp=%s",
+                    bitrix_chat_id, assigned_user_id, data,
+                )
+        except Exception:
+            logger.warning(
+                "T25: transfer_to_responsible failed — bitrix_chat_id=%s user=%s",
+                bitrix_chat_id, assigned_user_id,
+            )
+
     async def send_escalation(
         self,
         chat_id: int,

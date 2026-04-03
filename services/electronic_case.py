@@ -192,6 +192,14 @@ class ElectronicCaseService:
 
         return "\n".join(lines)
 
+    async def get_assigned_user_id(self, inn: str) -> str | None:
+        """Return Bitrix assigned_user_id for this INN, or None if not found."""
+        case = await self._fetch_case(inn)
+        if not case:
+            return None
+        value = case.get("assigned_user_id")
+        return str(value) if value else None
+
     async def get_checklist_status(self, inn: str) -> str:
         """Return ✅/❌ document checklist for this client."""
         docs = await self._fetch_documents(inn)

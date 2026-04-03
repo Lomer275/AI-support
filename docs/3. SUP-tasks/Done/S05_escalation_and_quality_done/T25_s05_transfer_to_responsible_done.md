@@ -2,6 +2,9 @@
 Статус: draft
 Спецификация: docs/2. SUP-specifications/S05_escalation_and_quality.md
 
+**Статус:** ✅ Выполнено
+**Дата закрытия:** 2026-04-03
+
 # T25_s05_transfer_to_responsible — Перевод на ответственного сделки
 
 ## Customer-facing инкремент

@@ -3,6 +3,8 @@
 ## [Не выпущено]
 
 ### Added
+- S05/T27: `services/support.py` — промпт `_coordinator()` расширен: добавлен тип `escalation_type="irritation"` с явным списком триггеров (риторические вопросы о качестве, прямое недовольство, повторный вопрос без ответа); ответ при раздражении — короткая человечная фраза без данных о деле; антитриггеры для обычных вопросов добавлены (принято 2026-04-03)
+- S05/T25: `services/imconnector.py` — методы `get_or_find_bitrix_chat_id()` и `transfer_to_responsible()`; `services/cases_mapper.py` — `ASSIGNED_BY_ID` в `DEAL_SELECT` и `assigned_user_id` в `build_case_row()`; `services/electronic_case.py` — `get_assigned_user_id()`; `handlers/text.py` — перевод чата на ответственного менеджера сразу после эскалации; требуется `ALTER TABLE cases ADD COLUMN IF NOT EXISTS assigned_user_id text` в Supabase (принято 2026-04-03)
 - S05/T30: `handlers/text.py` — per-chat `asyncio.Lock` в `_handle_authorized()` устраняет тройной ответ AI при быстрой отправке нескольких сообщений; второй и третий вызовы ждут в очереди без блокировки event loop (принято 2026-04-03)
 - S05/T26: `arbitration_manager` (ФИО арбитражного управляющего) верифицирован — поле присутствует в `cases_mapper.py` (UF_CRM_1607524042544) и в `get_case_context()` через `tracked()`; реализовано в S04/T22-T23 (принято 2026-04-03)
 - S05/T24: `services/imconnector.py` — уникальный `msg_id = f"{chat_id}_{timestamp_ms}"` вместо хардкода `"0"`; `asyncio.Lock` для `_refresh_token` предотвращает двойной refresh; таймаут 15s на все HTTP вызовы. `webhook_server.py` — `html.escape()` для текста оператора; логирование raw payload (DEBUG); fallback chat_id через CONNECTOR_MID (принято 2026-04-03)

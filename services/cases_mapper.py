@@ -113,6 +113,7 @@ DEAL_SELECT = [
     "UF_CRM_1593006867904", "UF_CRM_1593006883920",
     "UF_CRM_1593006900478", "UF_CRM_1593006917013",
     "UF_CRM_1593006931764", "UF_CRM_1593006948374",
+    "ASSIGNED_BY_ID",
 ]
 
 PAYMENT_FIELD_PAIRS = [
@@ -251,6 +252,7 @@ def build_case_row(deal: dict, contact: dict | None) -> dict:
         "au_property_to_sell":           d.get("UF_CRM_1605094712952") or None,
         "au_property_excluded":          d.get("UF_CRM_1605093669733") or None,
         "risk_flags":                    risk_flags,
+        "assigned_user_id":              str(d["ASSIGNED_BY_ID"]) if d.get("ASSIGNED_BY_ID") else None,
         "synced_at":                     now,
     }
 
