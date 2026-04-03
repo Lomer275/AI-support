@@ -108,7 +108,7 @@ class ImConnectorService:
         operator-reply webhooks so we can route responses to the right Telegram user.
         Returns True on success.
         """
-        msg_id = str(int(time.time() * 1000))
+        msg_id = f"{chat_id}_{int(time.time() * 1000)}"
         payload = {
             "CONNECTOR": self._connector_id,
             "LINE": self._openline_id,
@@ -131,7 +131,7 @@ class ImConnectorService:
                 }
             ],
         }
-        logger.info(
+        logger.debug(
             "ImConnector.send_message payload for chat_id=%s: CONNECTOR=%s LINE=%s msg_id=%s text_preview=%r",
             chat_id,
             self._connector_id,
@@ -140,7 +140,7 @@ class ImConnectorService:
             text[:120] if text else "",
         )
         data = await self._call("imconnector.send.messages", payload)
-        logger.info("ImConnector.send_message response for chat_id=%s: %s", chat_id, data)
+        logger.debug("ImConnector.send_message response for chat_id=%s: %s", chat_id, data)
         success = bool(data.get("result"))
         if not success:
             logger.warning(

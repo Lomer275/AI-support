@@ -68,10 +68,13 @@ def _parse_session_finish(post: dict) -> str | None:
 
 async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> None:
     """Forward operator message to Telegram client and update operator_last_reply_at."""
-    logger.info("ONIMCONNECTORMESSAGEADD raw payload: %s", post)
+    logger.debug("ONIMCONNECTORMESSAGEADD raw payload: %s", post)
     parsed = _parse_message(post)
     raw_chat_id = parsed["chat_id"]
-    # Fallback: some Bitrix events carry chat_id only in CONNECTOR_MID
+    # Fallback: в некоторых событиях Bitrix chat_id лежит только в CONNECTOR_MID.
+    # CONNECTOR_MID в нашем коннекторе tg_alina_support соответствует Telegram chat_id —
+    # это подтверждается симметрией с _parse_session_finish(), где CONNECTOR_MID — основной ключ.
+    # Если после деплоя fallback сработает и сообщение уйдёт не туда — убрать эту ветку.
     if not raw_chat_id:
         raw_chat_id = post.get("data[PARAMS][CONNECTOR_MID]")
         if raw_chat_id:

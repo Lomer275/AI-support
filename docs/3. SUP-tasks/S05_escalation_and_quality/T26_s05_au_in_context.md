@@ -1,5 +1,5 @@
 Дата: 2026-04-03
-Статус: draft
+Статус: ✅ accepted 2026-04-03
 Спецификация: docs/2. SUP-specifications/S05_escalation_and_quality.md
 
 # T26_s05_au_in_context — АУ в контексте агентов
@@ -15,6 +15,18 @@
 ## Контекст
 
 Сейчас агенты не знают ФИО АУ — поле отсутствует в `cases_mapper.py` и не попадает в `get_case_context()`. В диалоге dialog2 это привело к ответу «уточните у специалиста» на базовый вопрос.
+
+## Верификация закрытия (2026-04-03)
+
+Задача закрыта без изменений кода — реализация выполнена в S04/T22-T23 (коммит `a469b6d`).
+
+Проверено агентом в worktree (2026-04-03):
+- `services/cases_mapper.py` строка 86: `"UF_CRM_1607524042544"` в `DEAL_SELECT` с комментарием `# arbitration_manager`
+- `services/cases_mapper.py` строка 244: `"arbitration_manager": d.get("UF_CRM_1607524042544") or None` в `build_case_row()`
+- `services/electronic_case.py` строка 165: `f"Арбитражный управляющий: {tracked('arbitration_manager', 'АУ', case.get('arbitration_manager'))}"` в `get_case_context()`
+- `tracked()` автоматически пропускает NULL в контексте и добавляет ключ `'АУ'` в footer пустых полей
+
+Все 4 критерия приёмки выполнены.
 
 ⚠️ Конфликт с T25: оба трогают `cases_mapper.py` — координировать.
 
