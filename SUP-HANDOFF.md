@@ -1,6 +1,6 @@
 # SUP-HANDOFF — Текущее состояние
 
-**Дата обновления:** 2026-03-20
+**Дата обновления:** 2026-04-03
 
 ---
 
@@ -102,13 +102,13 @@ T01–T05 независимы, T06 зависит от всех.
 
 | ID | Задача | Зависит от | Статус |
 |----|--------|------------|--------|
-| [T24](docs/3.%20SUP-tasks/S05_escalation_and_quality/T24_s05_bidirectional_chat.md) | Диагностика и фикс двусторонней переписки Bitrix ↔ Telegram | — | ✅ 2026-04-03 |
+| [T24](docs/3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T24_s05_bidirectional_chat_done.md) | Диагностика и фикс двусторонней переписки Bitrix ↔ Telegram | — | ✅ 2026-04-03 |
 | [T25](docs/3.%20SUP-tasks/S05_escalation_and_quality/T25_s05_transfer_to_responsible.md) | Перевод на ответственного сделки (`chat.transfer` + Bitrix chat ID) | T24 | 🔵 planned |
-| [T26](docs/3.%20SUP-tasks/S05_escalation_and_quality/T26_s05_au_in_context.md) | АУ в `cases_mapper.py` и `get_case_context()` | — | ✅ 2026-04-03 |
+| [T26](docs/3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T26_s05_au_in_context_done.md) | АУ в `cases_mapper.py` и `get_case_context()` | — | ✅ 2026-04-03 |
 | [T27](docs/3.%20SUP-tasks/S05_escalation_and_quality/T27_s05_smart_escalation.md) | Умная эскалация — промпт Coordinator (первый сигнал) | — | 🔵 planned |
 | [T28](docs/3.%20SUP-tasks/S05_escalation_and_quality/T28_s05_no_data_response.md) | Ответ при отсутствии данных — промпт R1/R2 | T26 | 🔵 planned |
 | [T29](docs/3.%20SUP-tasks/S05_escalation_and_quality/T29_s05_no_repetition.md) | Устранение повторений — last_3_answers + промпт R1 | — | 🔵 planned |
-| [T30](docs/3.%20SUP-tasks/S05_escalation_and_quality/T30_s05_parallel_pipeline_fix.md) | Фикс параллельных pipeline (per-chat asyncio.Lock) | — | ✅ 2026-04-03 |
+| [T30](docs/3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T30_s05_parallel_pipeline_fix_done.md) | Фикс параллельных pipeline (per-chat asyncio.Lock) | — | ✅ 2026-04-03 |
 | [T31](docs/3.%20SUP-tasks/S05_escalation_and_quality/T31_s05_regression.md) | Регрессия — quality_run.py + dialog2-сценарий | T24–T30 | 🔵 planned |
 
 ---

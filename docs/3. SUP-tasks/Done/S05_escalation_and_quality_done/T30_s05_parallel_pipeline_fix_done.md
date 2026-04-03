@@ -1,5 +1,5 @@
 Дата: 2026-04-03
-Статус: draft
+Статус: ✅ accepted 2026-04-03
 Спецификация: docs/2. SUP-specifications/S05_escalation_and_quality.md
 
 # T30_s05_parallel_pipeline_fix — Фикс параллельных pipeline (тройной ответ)

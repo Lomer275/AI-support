@@ -1,5 +1,5 @@
 Дата: 2026-04-03
-Статус: draft
+Статус: ✅ accepted 2026-04-03
 Спецификация: docs/2. SUP-specifications/S05_escalation_and_quality.md
 
 # T24_s05_bidirectional_chat — Диагностика и фикс двусторонней переписки Bitrix ↔ Telegram
