@@ -99,7 +99,8 @@ class SupportService:
             kwargs["proxy"] = self._proxy
         try:
             async with self._session.post(
-                self._openai_url, json=payload, headers=headers, **kwargs
+                self._openai_url, json=payload, headers=headers,
+                timeout=aiohttp.ClientTimeout(total=60), **kwargs
             ) as resp:
                 if resp.status >= 400:
                     text = await resp.text()
@@ -589,6 +590,9 @@ class SupportService:
         else:
             client_context = trimmed_docs
 
+        # Save user question before pipeline — so it's preserved even if pipeline fails
+        await self._supabase.save_chat_message(chat_id, "user", question)
+
         # r1_lawyer and r1_sales are independent — run in parallel
         r1_lawyer, r1_sales = await asyncio.gather(
             self._r1_lawyer(client_context, question, history),
@@ -655,7 +659,6 @@ class SupportService:
 
         final_answer = result.get("answer") or FALLBACK_ALINA
 
-        await self._supabase.save_chat_message(chat_id, "user", question)
         await self._supabase.save_chat_message(chat_id, "assistant", final_answer)
 
         switcher = result.get("switcher", "false")

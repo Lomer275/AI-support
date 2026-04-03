@@ -119,6 +119,7 @@ async def main():
         cases_url=settings.supabase_cases_url,
         cases_key=settings.supabase_cases_anon_key,
         document_validator=document_validator,
+        webhook_secret=settings.webhook_secret,
     )
     runner = web.AppRunner(webhook_app)
     await runner.setup()

@@ -268,7 +268,7 @@ def _supabase_headers(cases_key: str, prefer: str = "resolution=merge-duplicates
 
 async def upsert_case(
     session: aiohttp.ClientSession, row: dict, cases_url: str, cases_key: str
-) -> bool:
+) -> tuple[bool, str | None]:
     async with session.post(
         f"{cases_url}/rest/v1/cases",
         headers=_supabase_headers(cases_key),

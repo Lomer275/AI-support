@@ -31,6 +31,7 @@ class Settings:
     bitrix_oauth_access_token: str
     bitrix_oauth_refresh_token: str
     webhook_port: int
+    webhook_secret: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -56,6 +57,7 @@ class Settings:
             bitrix_oauth_access_token=os.environ["BITRIX_OAUTH_ACCESS_TOKEN"],
             bitrix_oauth_refresh_token=os.environ["BITRIX_OAUTH_REFRESH_TOKEN"],
             webhook_port=int(os.getenv("WEBHOOK_PORT", "8080")),
+            webhook_secret=os.getenv("WEBHOOK_SECRET") or None,
         )
 
 

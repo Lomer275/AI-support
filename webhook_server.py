@@ -7,6 +7,8 @@ Events handled on /webhook/bitrix/:
 Events handled on /bitrix/crm-deal-update:
 - ONCRMDEALUPDATE / ONCRMDEALADD — deal changed → upsert in electronic_case Supabase
 """
+import asyncio
+import html
 import logging
 import re
 
@@ -16,6 +18,20 @@ from aiohttp import web
 from services.supabase import SupabaseService
 
 logger = logging.getLogger(__name__)
+
+
+# ── Webhook auth ─────────────────────────────────────────────────────────────
+
+def _check_secret(request: web.Request, secret: str | None) -> bool:
+    """Verify ?secret= query param matches WEBHOOK_SECRET. Always passes if secret not configured."""
+    if not secret:
+        logger.warning("WEBHOOK_SECRET not set — webhook endpoint is unauthenticated")
+        return True
+    provided = request.rel_url.query.get("secret", "")
+    if provided != secret:
+        logger.warning("Webhook rejected: secret mismatch from %s", request.remote)
+        return False
+    return True
 
 
 # ── BB-code cleaner ──────────────────────────────────────────────────────────
@@ -100,7 +116,7 @@ async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> No
         return
 
     if text:
-        await bot.send_message(chat_id, text)
+        await bot.send_message(chat_id, html.escape(text))
 
     for file in files:
         file_url = file["link"]
@@ -196,6 +212,9 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
         event=ONCRMDEALUPDATE
         data[FIELDS][ID]=<deal_id>
     """
+    if not _check_secret(request, request.app.get("webhook_secret")):
+        return web.Response(status=403, text="forbidden")
+
     try:
         post = dict(await request.post())
     except Exception:
@@ -241,15 +260,16 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
             logger.info("[WEBHOOK] deal_id=%s validator=%s folder_url=%s",
                         deal_id, "set" if validator else "None", repr(folder_url))
             if validator and folder_url:
-                import asyncio
-
                 async def _run_validator():
                     try:
                         await validator.process_deal_files(inn, deal_id)
                     except Exception:
                         logger.exception("[VALIDATOR] task failed for deal_id=%s", deal_id)
 
-                asyncio.create_task(_run_validator())
+                task = asyncio.create_task(_run_validator())
+                bg_tasks = request.app["_background_tasks"]
+                bg_tasks.add(task)
+                task.add_done_callback(bg_tasks.discard)
         else:
             logger.error("[WEBHOOK] Supabase upsert failed for deal_id=%s: %s", deal_id, err)
 
@@ -263,6 +283,9 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
 
 async def handle_bitrix_webhook(request: web.Request) -> web.Response:
     """Entry point for Bitrix Open Lines events. Always returns 200."""
+    if not _check_secret(request, request.app.get("webhook_secret")):
+        return web.Response(status=403, text="forbidden")
+
     try:
         post = await request.post()
         post = dict(post)
@@ -300,6 +323,7 @@ def create_webhook_app(
     cases_url: str,
     cases_key: str,
     document_validator=None,
+    webhook_secret: str | None = None,
 ) -> web.Application:
     app = web.Application()
     app["bot"] = bot
@@ -309,6 +333,8 @@ def create_webhook_app(
     app["cases_url"] = cases_url
     app["cases_key"] = cases_key
     app["document_validator"] = document_validator
+    app["webhook_secret"] = webhook_secret
+    app["_background_tasks"] = set()
     app.router.add_post("/webhook/bitrix/", handle_bitrix_webhook)
     app.router.add_post("/bitrix/crm-deal-update", _handle_crm_deal_update)
     return app

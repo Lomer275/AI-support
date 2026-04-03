@@ -1,4 +1,5 @@
 import asyncio
+import html
 import json
 import logging
 
@@ -48,7 +49,7 @@ async def handle_text(
     **kwargs,
 ):
     state = session.get("state", "waiting_inn")
-    text = message.text or ""
+    text = (message.text or "")[:2000]
 
     if state == SessionState.WAITING_INN:
         await _handle_waiting_inn(message, text, session, supabase, bitrix, openai_svc)
@@ -104,14 +105,14 @@ async def _handle_waiting_inn(
             await supabase.update_session(message.chat.id, error_count=error_count)
             escalate = error_count >= 2
             ai_text = await openai_svc.inn_not_found(escalate=escalate)
-            await message.answer(ai_text or (FALLBACK_INN_NOT_FOUND_ESCALATE if escalate else FALLBACK_INN_NOT_FOUND))
+            await message.answer(html.escape(ai_text) if ai_text else (FALLBACK_INN_NOT_FOUND_ESCALATE if escalate else FALLBACK_INN_NOT_FOUND))
     else:
         # No valid INN in message — increment error counter
         error_count = session.get("error_count", 0) + 1
         await supabase.update_session(message.chat.id, error_count=error_count)
         escalate = error_count >= 2
         ai_text = await openai_svc.no_inn_in_text(text, digit_count, escalate=escalate)
-        await message.answer(ai_text or (FALLBACK_NO_INN_ESCALATE if escalate else FALLBACK_NO_INN))
+        await message.answer(html.escape(ai_text) if ai_text else (FALLBACK_NO_INN_ESCALATE if escalate else FALLBACK_NO_INN))
 
 
 async def _handle_waiting_phone(
@@ -121,7 +122,7 @@ async def _handle_waiting_phone(
 ):
     ai_text = await openai_svc.waiting_for_phone(text)
     await message.answer(
-        ai_text or FALLBACK_WAITING_PHONE,
+        html.escape(ai_text) if ai_text else FALLBACK_WAITING_PHONE,
         reply_markup=phone_share_keyboard(),
     )
 
@@ -202,7 +203,7 @@ async def _handle_authorized(
             stop_typing.set()
             typing_task.cancel()
 
-        await message.answer(ai_text or FALLBACK_ALINA)
+        await message.answer(html.escape(ai_text) if ai_text else FALLBACK_ALINA)
 
         # ── Escalate to operator if switcher=true ─────────────────────────────────
         if switcher == "true":
@@ -223,6 +224,3 @@ async def _handle_authorized(
                 "Session escalated for chat_id=%s escalation_type=%s", chat_id, escalation_type
             )
 
-    # Cleanup: удалить лок если никто больше не ждёт
-    if chat_id in _chat_locks and not _chat_locks[chat_id].locked():
-        _chat_locks.pop(chat_id, None)

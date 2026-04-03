@@ -1,7 +1,10 @@
+import asyncio
 import logging
 import time
 
 import aiohttp
+
+_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,7 @@ class ImConnectorService:
         self._refresh_tok = refresh_token
         self._openline_id = openline_id
         self._connector_id = connector_id
+        self._refresh_lock = asyncio.Lock()
 
     # ── OAuth ────────────────────────────────────────────────────────────────
 
@@ -47,7 +51,7 @@ class ImConnectorService:
             "refresh_token": self._refresh_tok,
         }
         try:
-            async with self._session.post(_OAUTH_URL, data=params) as resp:
+            async with self._session.post(_OAUTH_URL, data=params, timeout=_TIMEOUT) as resp:
                 data = await resp.json(content_type=None)
         except Exception:
             logger.exception("ImConnector: OAuth refresh request failed")
@@ -73,7 +77,7 @@ class ImConnectorService:
         payload = {**payload, "auth": self._access_token}
 
         try:
-            async with self._session.post(url, json=payload) as resp:
+            async with self._session.post(url, json=payload, timeout=_TIMEOUT) as resp:
                 data = await resp.json(content_type=None)
         except Exception:
             logger.exception("ImConnector: HTTP error calling %s", method)
@@ -82,14 +86,17 @@ class ImConnectorService:
         error = data.get("error", "")
         if error == "expired_token":
             logger.info("ImConnector: token expired, refreshing...")
-            if await self._refresh_token():
-                payload["auth"] = self._access_token
-                try:
-                    async with self._session.post(url, json=payload) as resp:
-                        data = await resp.json(content_type=None)
-                except Exception:
-                    logger.exception("ImConnector: HTTP error on retry after token refresh")
-                    return {}
+            async with self._refresh_lock:
+                # Re-check after acquiring lock — another coroutine may have already refreshed
+                if payload.get("auth") == self._access_token:
+                    await self._refresh_token()
+            payload["auth"] = self._access_token
+            try:
+                async with self._session.post(url, json=payload, timeout=_TIMEOUT) as resp:
+                    data = await resp.json(content_type=None)
+            except Exception:
+                logger.exception("ImConnector: HTTP error on retry after token refresh")
+                return {}
             else:
                 logger.error("ImConnector: token refresh failed, cannot retry")
                 return {}
