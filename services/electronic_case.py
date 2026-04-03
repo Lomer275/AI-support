@@ -162,6 +162,7 @@ class ElectronicCaseService:
             f"Телефон: {_fmt(case.get('phone'))}",
             f"Стадия: {stage_str}",
             "",
+            f"Менеджер сопровождения (МС): {_fmt(case.get('assigned_user_name'))}",
             f"Арбитражный управляющий: {tracked('arbitration_manager', 'АУ', case.get('arbitration_manager'))}",
             f"Регион суда: {_fmt(case.get('court_region'))}",
             f"Дата подачи заявления: {_fmt(case.get('filing_actual_date') or case.get('filing_planned_date'))}",

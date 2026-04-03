@@ -63,6 +63,39 @@ async def fetch_deals_page(session: aiohttp.ClientSession, start: int) -> list[d
     return result.get("result", [])
 
 
+async def fetch_users_batch(
+    session: aiohttp.ClientSession, user_ids: list[str]
+) -> dict[str, str]:
+    """Batch-fetch user full names by ID. Returns {user_id: full_name}."""
+    if not user_ids:
+        return {}
+
+    data = [("halt", "0")]
+    for uid in user_ids:
+        data.append((
+            f"cmd[u{uid}]",
+            f"user.get?ID={uid}&select[]=ID&select[]=NAME&select[]=LAST_NAME&select[]=SECOND_NAME",
+        ))
+
+    async with session.post(f"{BITRIX_BASE}/batch", data=data) as resp:
+        result = await resp.json(content_type=None)
+
+    users = {}
+    inner = result.get("result", {}).get("result", {})
+    for uid in user_ids:
+        raw = inner.get(f"u{uid}")
+        if isinstance(raw, list) and raw:
+            u = raw[0]
+        elif isinstance(raw, dict) and raw.get("ID"):
+            u = raw
+        else:
+            continue
+        name = " ".join(p for p in [u.get("LAST_NAME", ""), u.get("NAME", ""), u.get("SECOND_NAME", "")] if p).strip()
+        if name:
+            users[str(uid)] = name
+    return users
+
+
 async def fetch_contacts_batch(
     session: aiohttp.ClientSession, contact_ids: list[str]
 ) -> dict[str, dict]:
@@ -124,7 +157,7 @@ async def run(limit: int | None) -> None:
                     continue
                 valid_deals.append(d)
 
-            # Batch-fetch contacts for this page
+            # Batch-fetch contacts and managers for this page
             contact_ids = list({
                 str(d["CONTACT_ID"])
                 for d in valid_deals
@@ -133,6 +166,16 @@ async def run(limit: int | None) -> None:
             contacts: dict[str, dict] = {}
             if contact_ids:
                 contacts = await fetch_contacts_batch(session, contact_ids)
+                await asyncio.sleep(REQUEST_DELAY)
+
+            user_ids = list({
+                str(d["ASSIGNED_BY_ID"])
+                for d in valid_deals
+                if d.get("ASSIGNED_BY_ID")
+            })
+            users: dict[str, str] = {}
+            if user_ids:
+                users = await fetch_users_batch(session, user_ids)
                 await asyncio.sleep(REQUEST_DELAY)
 
             # Process each deal
@@ -148,7 +191,8 @@ async def run(limit: int | None) -> None:
                     logger.debug("No contact for deal %s", deal_id)
 
                 try:
-                    row = build_case_row(deal, contact)
+                    manager_name = users.get(str(deal.get("ASSIGNED_BY_ID") or ""))
+                    row = build_case_row(deal, contact, assigned_user_name=manager_name)
                     ok, err = await upsert_case(session, row, CASES_URL, CASES_KEY)
                     if ok:
                         stats["processed"] += 1

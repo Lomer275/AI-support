@@ -175,10 +175,12 @@ async def _fetch_deal_with_contact(
     select_qs = "&".join(f"select[]={f}" for f in DEAL_SELECT)
     contact_select = "select[]=ID&select[]=NAME&select[]=LAST_NAME&select[]=SECOND_NAME&select[]=PHONE"
 
+    manager_select = "select[]=ID&select[]=NAME&select[]=LAST_NAME&select[]=SECOND_NAME"
     batch_data = [
         ("halt", "0"),
         ("cmd[deal]", f"crm.deal.get?ID={deal_id}&{select_qs}"),
         ("cmd[contact]", f"crm.contact.get?ID=$result[deal][CONTACT_ID]&{contact_select}"),
+        ("cmd[manager]", f"user.get?ID=$result[deal][ASSIGNED_BY_ID]&{manager_select}"),
     ]
 
     try:
@@ -200,6 +202,17 @@ async def _fetch_deal_with_contact(
     if not contact or not contact.get("ID"):
         contact = None
 
+    # Extract manager full name from user.get result (list or dict)
+    manager_raw = inner.get("manager") or []
+    if isinstance(manager_raw, list) and manager_raw:
+        m = manager_raw[0]
+    elif isinstance(manager_raw, dict) and manager_raw.get("ID"):
+        m = manager_raw
+    else:
+        m = {}
+    manager_name = " ".join(p for p in [m.get("LAST_NAME", ""), m.get("NAME", ""), m.get("SECOND_NAME", "")] if p).strip() or None
+
+    deal["_manager_name"] = manager_name
     return deal, contact
 
 
@@ -243,7 +256,7 @@ async def _handle_crm_deal_update(request: web.Request) -> web.Response:
             logger.info("[WEBHOOK] deal_id=%s has no INN, skipping upsert", deal_id)
             return web.Response(status=200, text="ok")
 
-        row = build_case_row(deal, contact)
+        row = build_case_row(deal, contact, assigned_user_name=deal.pop("_manager_name", None))
         ok, err = await upsert_case(http_session, row, cases_url, cases_key)
         if ok:
             logger.info("[WEBHOOK] deal_id=%s upserted (stage=%s)", deal_id, deal.get("STAGE_ID"))

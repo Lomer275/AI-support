@@ -181,8 +181,8 @@ T8: Регрессия — quality_run.py + воспроизведение dialo
 | [T25](../3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T25_s05_transfer_to_responsible_done.md) | Перевод на ответственного (`chat.transfer` + fallback) | T24 | T26*, T27, T28, T29, T30 | ✅ 2026-04-03 |
 | [T26](../3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T26_s05_au_in_context_done.md) | АУ в `cases_mapper.py` и `get_case_context()` | — | T24, T25*, T27, T28, T29, T30 | ✅ 2026-04-03 |
 | [T27](../3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T27_s05_smart_escalation_done.md) | Умная эскалация — промпт Coordinator | — | T24, T25, T26, T28*, T29*, T30 | ✅ 2026-04-03 |
-| [T28](../3.%20SUP-tasks/S05_escalation_and_quality/T28_s05_no_data_response.md) | Ответ при отсутствии данных — промпт R1/R2 | T26 | T24, T25, T27*, T29*, T30 | 🔵 planned |
-| [T29](../3.%20SUP-tasks/S05_escalation_and_quality/T29_s05_no_repetition.md) | Устранение повторений — last_3_answers + промпт | — | T24, T25, T26, T27*, T28*, T30 | 🔵 planned |
+| [T28](../3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T28_s05_no_data_response_done.md) | Ответ при отсутствии данных — промпт R1/R2 | T26 | T24, T25, T27*, T29*, T30 | ✅ 2026-04-03 |
+| [T29](../3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T29_s05_no_repetition_done.md) | Устранение повторений — last_3_answers + промпт | — | T24, T25, T26, T27*, T28*, T30 | ✅ 2026-04-03 |
 | [T30](../3.%20SUP-tasks/Done/S05_escalation_and_quality_done/T30_s05_parallel_pipeline_fix_done.md) | Фикс параллельных pipeline (тройной ответ) | — | T24, T25, T26, T27, T28, T29 | ✅ 2026-04-03 |
 | [T31](../3.%20SUP-tasks/S05_escalation_and_quality/T31_s05_regression.md) | Регрессия — quality_run.py + dialog2-сценарий | T24–T30 | — | 🔵 planned |
 

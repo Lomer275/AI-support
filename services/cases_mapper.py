@@ -182,7 +182,7 @@ def _has_property_bool(value) -> bool | None:
 
 # ── Deal → cases row ──────────────────────────────────────────────────────────
 
-def build_case_row(deal: dict, contact: dict | None) -> dict:
+def build_case_row(deal: dict, contact: dict | None, assigned_user_name: str | None = None) -> dict:
     """Map Bitrix deal + contact dicts to a cases table row."""
     d = deal
     c = contact or {}
@@ -253,6 +253,7 @@ def build_case_row(deal: dict, contact: dict | None) -> dict:
         "au_property_excluded":          d.get("UF_CRM_1605093669733") or None,
         "risk_flags":                    risk_flags,
         "assigned_user_id":              str(d["ASSIGNED_BY_ID"]) if d.get("ASSIGNED_BY_ID") else None,
+        "assigned_user_name":            assigned_user_name or None,
         "synced_at":                     now,
     }
 
