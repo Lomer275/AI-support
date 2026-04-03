@@ -68,8 +68,14 @@ def _parse_session_finish(post: dict) -> str | None:
 
 async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> None:
     """Forward operator message to Telegram client and update operator_last_reply_at."""
+    logger.info("ONIMCONNECTORMESSAGEADD raw payload: %s", post)
     parsed = _parse_message(post)
     raw_chat_id = parsed["chat_id"]
+    # Fallback: some Bitrix events carry chat_id only in CONNECTOR_MID
+    if not raw_chat_id:
+        raw_chat_id = post.get("data[PARAMS][CONNECTOR_MID]")
+        if raw_chat_id:
+            logger.info("ONIMCONNECTORMESSAGEADD: used CONNECTOR_MID fallback chat_id=%s", raw_chat_id)
     if not raw_chat_id:
         logger.warning("ONIMCONNECTORMESSAGEADD: no chat_id, skipping")
         return
@@ -82,6 +88,13 @@ async def _handle_message(post: dict, bot: Bot, supabase: SupabaseService) -> No
 
     text = _clean_bb_codes(parsed["text"])
     files = parsed["files"]
+
+    if not text and not files:
+        logger.warning(
+            "ONIMCONNECTORMESSAGEADD: chat_id=%s has empty text and no files, skipping send",
+            chat_id,
+        )
+        return
 
     if text:
         await bot.send_message(chat_id, text)

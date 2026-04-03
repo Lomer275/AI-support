@@ -19,6 +19,8 @@ from utils import extract_inn, moscow_now
 logger = logging.getLogger(__name__)
 router = Router()
 
+_chat_locks: dict[int, asyncio.Lock] = {}
+
 # Fallback texts when AI fails
 FALLBACK_INN_NOT_FOUND = "ИНН не найден. Проверьте правильность и повторите."
 FALLBACK_INN_NOT_FOUND_ESCALATE = "ИНН не найден. Если у вас возникли трудности — напишите нам в поддержку @Lobster_21, и мы разберёмся."
@@ -136,85 +138,91 @@ async def _handle_authorized(
     imconnector_svc: ImConnectorService,
     electronic_case_svc: ElectronicCaseService | None = None,
 ):
-    if not text.strip():
-        await message.answer("Задайте любой вопрос по вашему делу — я отвечу.")
-        return
-
     chat_id = message.chat.id
-    contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"
-    inn = session.get("inn") or ""
-    deal_id = session.get("deal_id") or ""
+    lock = _chat_locks.setdefault(chat_id, asyncio.Lock())
+    async with lock:
+        if not text.strip():
+            await message.answer("Задайте любой вопрос по вашему делу — я отвечу.")
+            return
 
-    # ── Escalation routing ────────────────────────────────────────────────────
-    # If session is escalated, forward message to operator and skip AI entirely.
-    if session.get("escalated"):
-        await imconnector_svc.send_message(chat_id, contact_name, text)
-        logger.info("Escalated message forwarded to operator for chat_id=%s", chat_id)
-        return
+        contact_name = session.get("contact_name") or session.get("first_name") or "Клиент"
+        inn = session.get("inn") or ""
+        deal_id = session.get("deal_id") or ""
 
-    # Send initial typing indicator and start background loop
-    await bot.send_chat_action(chat_id, ChatAction.TYPING)
+        # ── Escalation routing ────────────────────────────────────────────────────
+        # If session is escalated, forward message to operator and skip AI entirely.
+        if session.get("escalated"):
+            await imconnector_svc.send_message(chat_id, contact_name, text)
+            logger.info("Escalated message forwarded to operator for chat_id=%s", chat_id)
+            return
 
-    stop_typing = asyncio.Event()
+        # Send initial typing indicator and start background loop
+        await bot.send_chat_action(chat_id, ChatAction.TYPING)
 
-    async def _typing_loop():
-        while not stop_typing.is_set():
-            await asyncio.sleep(4)
-            if not stop_typing.is_set():
-                await bot.send_chat_action(chat_id, ChatAction.TYPING)
+        stop_typing = asyncio.Event()
 
-    typing_task = asyncio.create_task(_typing_loop())
+        async def _typing_loop():
+            while not stop_typing.is_set():
+                await asyncio.sleep(4)
+                if not stop_typing.is_set():
+                    await bot.send_chat_action(chat_id, ChatAction.TYPING)
 
-    switcher = "false"
-    escalation_type = "none"
-    try:
-        case_context = ""
-        if electronic_case_svc and inn:
-            try:
-                case_context = await electronic_case_svc.get_case_context(inn) or ""
-                if case_context:
-                    logger.info("[CONTEXT] source=electronic_case inn=%s", inn)
-            except Exception:
-                logger.exception("[CONTEXT] electronic_case failed for inn=%s", inn)
-        if not case_context and deal_id:
-            try:
-                case_context = await bitrix.get_deal_profile(deal_id) or ""
-                if case_context:
-                    logger.warning("[CONTEXT] source=bitrix_fallback inn=%s deal_id=%s", inn, deal_id)
-            except Exception:
-                logger.exception("get_deal_profile fallback failed for deal_id=%s", deal_id)
+        typing_task = asyncio.create_task(_typing_loop())
 
-        ai_text, switcher, escalation_type = await support_svc.answer(
-            chat_id, inn, text, contact_name, case_context
-        )
-    except Exception:
-        logger.exception("SupportService.answer failed, falling back to chat_as_alina")
+        switcher = "false"
+        escalation_type = "none"
         try:
-            ai_text = await openai_svc.chat_as_alina(text, contact_name)
+            case_context = ""
+            if electronic_case_svc and inn:
+                try:
+                    case_context = await electronic_case_svc.get_case_context(inn) or ""
+                    if case_context:
+                        logger.info("[CONTEXT] source=electronic_case inn=%s", inn)
+                except Exception:
+                    logger.exception("[CONTEXT] electronic_case failed for inn=%s", inn)
+            if not case_context and deal_id:
+                try:
+                    case_context = await bitrix.get_deal_profile(deal_id) or ""
+                    if case_context:
+                        logger.warning("[CONTEXT] source=bitrix_fallback inn=%s deal_id=%s", inn, deal_id)
+                except Exception:
+                    logger.exception("get_deal_profile fallback failed for deal_id=%s", deal_id)
+
+            ai_text, switcher, escalation_type = await support_svc.answer(
+                chat_id, inn, text, contact_name, case_context
+            )
         except Exception:
-            logger.exception("chat_as_alina fallback also failed")
-            ai_text = None
-    finally:
-        stop_typing.set()
-        typing_task.cancel()
+            logger.exception("SupportService.answer failed, falling back to chat_as_alina")
+            try:
+                ai_text = await openai_svc.chat_as_alina(text, contact_name)
+            except Exception:
+                logger.exception("chat_as_alina fallback also failed")
+                ai_text = None
+        finally:
+            stop_typing.set()
+            typing_task.cancel()
 
-    await message.answer(ai_text or FALLBACK_ALINA)
+        await message.answer(ai_text or FALLBACK_ALINA)
 
-    # ── Escalate to operator if switcher=true ─────────────────────────────────
-    if switcher == "true":
-        # Best-effort: get history for context via support_svc internal supabase
-        try:
-            history = await support_svc.get_chat_history(chat_id)
-        except Exception:
-            history = []
+        # ── Escalate to operator if switcher=true ─────────────────────────────────
+        if switcher == "true":
+            # Best-effort: get history for context via support_svc internal supabase
+            try:
+                history = await support_svc.get_chat_history(chat_id)
+            except Exception:
+                history = []
 
-        await imconnector_svc.send_escalation(chat_id, contact_name, text, history)
-        await supabase.update_session(
-            chat_id,
-            escalated=True,
-            escalated_at=moscow_now(),
-            bitrix_chat_id=str(chat_id),
-        )
-        logger.info(
-            "Session escalated for chat_id=%s escalation_type=%s", chat_id, escalation_type
-        )
+            await imconnector_svc.send_escalation(chat_id, contact_name, text, history)
+            await supabase.update_session(
+                chat_id,
+                escalated=True,
+                escalated_at=moscow_now(),
+                bitrix_chat_id=str(chat_id),
+            )
+            logger.info(
+                "Session escalated for chat_id=%s escalation_type=%s", chat_id, escalation_type
+            )
+
+    # Cleanup: удалить лок если никто больше не ждёт
+    if chat_id in _chat_locks and not _chat_locks[chat_id].locked():
+        _chat_locks.pop(chat_id, None)
