@@ -95,6 +95,24 @@ T01–T05 независимы, T06 зависит от всех.
 | — | Плановые контакты по расписанию (исходящие сообщения от бота) | pending |
 | — | Информирование о событиях суда из данных Bitrix | pending |
 
+### Активный спринт: S05 — Эскалация и качество ответов
+
+Источник: анализ реального диалога (dialog2, клиент Дмитрий Валерьевич).
+Параллелизм: T24, T26, T27, T29, T30 независимы. T25 после T24. T28 после T26. T31 после всех.
+
+| ID | Задача | Зависит от | Статус |
+|----|--------|------------|--------|
+| [T24](docs/3.%20SUP-tasks/S05_escalation_and_quality/T24_s05_bidirectional_chat.md) | Диагностика и фикс двусторонней переписки Bitrix ↔ Telegram | — | 🔵 planned |
+| [T25](docs/3.%20SUP-tasks/S05_escalation_and_quality/T25_s05_transfer_to_responsible.md) | Перевод на ответственного сделки (`chat.transfer` + Bitrix chat ID) | T24 | 🔵 planned |
+| [T26](docs/3.%20SUP-tasks/S05_escalation_and_quality/T26_s05_au_in_context.md) | АУ в `cases_mapper.py` и `get_case_context()` | — | 🔵 planned |
+| [T27](docs/3.%20SUP-tasks/S05_escalation_and_quality/T27_s05_smart_escalation.md) | Умная эскалация — промпт Coordinator (первый сигнал) | — | 🔵 planned |
+| [T28](docs/3.%20SUP-tasks/S05_escalation_and_quality/T28_s05_no_data_response.md) | Ответ при отсутствии данных — промпт R1/R2 | T26 | 🔵 planned |
+| [T29](docs/3.%20SUP-tasks/S05_escalation_and_quality/T29_s05_no_repetition.md) | Устранение повторений — last_3_answers + промпт R1 | — | 🔵 planned |
+| [T30](docs/3.%20SUP-tasks/S05_escalation_and_quality/T30_s05_parallel_pipeline_fix.md) | Фикс параллельных pipeline (per-chat asyncio.Lock) | — | 🔵 planned |
+| [T31](docs/3.%20SUP-tasks/S05_escalation_and_quality/T31_s05_regression.md) | Регрессия — quality_run.py + dialog2-сценарий | T24–T30 | 🔵 planned |
+
+---
+
 ### Приоритет 3: Эскалация на оператора
 
 | ID | Задача | Статус |
